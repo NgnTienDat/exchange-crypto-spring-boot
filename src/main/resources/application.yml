@@ -1,6 +1,5 @@
 server:
   port: 8080
-
 spring:
   application:
     name: exchange-crypto
@@ -20,7 +19,7 @@ spring:
       ddl-auto: update
     show-sql: true
 
-#auth:
-#  signer-key: "9IkbhtRXgJZF9CA3SerRWlpiytQBLJFXpCRx58oFZu2zOvGtoJAC4b257tfa8rmd"
-#  valid-duration: 36000 # in second
-#  refreshable-duration: 360000 # in second
+auth:
+  signer-key: "UwQQGr3/Fi21btHXjPqoUSPFF6X9TSBLtPBoerP2+ykB7HfNGs4g940yZWelH+MV"
+  valid-duration: 86400 # in second
+  refreshable-duration: 259200 # in second
