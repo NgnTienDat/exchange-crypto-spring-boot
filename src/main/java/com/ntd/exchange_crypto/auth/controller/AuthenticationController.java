@@ -1,13 +1,12 @@
 package com.ntd.exchange_crypto.auth.controller;
 
 import com.nimbusds.jose.JOSEException;
-import com.ntd.exchange_crypto.auth.dto.request.AuthenticationRequest;
-import com.ntd.exchange_crypto.auth.dto.request.IntrospectRequest;
-import com.ntd.exchange_crypto.auth.dto.request.LogoutRequest;
-import com.ntd.exchange_crypto.auth.dto.request.RefreshRequest;
+import com.ntd.exchange_crypto.auth.dto.request.*;
 import com.ntd.exchange_crypto.auth.dto.response.AuthenticationResponse;
 import com.ntd.exchange_crypto.auth.dto.response.IntrospectResponse;
+import com.ntd.exchange_crypto.auth.dto.response.TFAResponse;
 import com.ntd.exchange_crypto.auth.service.AuthenticationService;
+import com.ntd.exchange_crypto.auth.tfa.TwoFactorAuthenticationService;
 import com.ntd.exchange_crypto.common.dto.response.APIResponse;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -15,10 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.text.ParseException;
 
@@ -29,7 +25,7 @@ import java.text.ParseException;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthenticationController {
     AuthenticationService authenticationService;
-
+    TwoFactorAuthenticationService tfaService;
 
     // login
     @PostMapping("/login")
@@ -88,4 +84,42 @@ public class AuthenticationController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+
+    @PostMapping("/2fa/setup")
+    public ResponseEntity<APIResponse<TFAResponse>> enable2fa() {
+        APIResponse<TFAResponse> response = APIResponse.<TFAResponse>builder()
+                .success(true)
+                .code(HttpStatus.OK.value())
+                .message("Enable 2FA")
+                .result(authenticationService.enabledTwoFactorAuthentication())
+                .build();
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @PostMapping("/2fa/verify-code")
+    public ResponseEntity<APIResponse<?>> verifyCode(
+            @RequestBody @Valid VerificationRequest verificationRequest
+    ) {
+        APIResponse<AuthenticationResponse> response = APIResponse.<AuthenticationResponse>builder()
+                .success(true)
+                .code(HttpStatus.OK.value())
+                .message("Verify code")
+                .result(authenticationService.verifyCode(verificationRequest))
+                .build();
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

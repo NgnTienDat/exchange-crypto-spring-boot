@@ -40,4 +40,6 @@ public class UserCreationRequest {
     @Size(max = 100, message = "Họ không được quá 45 ký tự!")
     @NotBlank(message = "NOT_BLANK")
     String fullName;
+
+    boolean tfaEnabled;
 }

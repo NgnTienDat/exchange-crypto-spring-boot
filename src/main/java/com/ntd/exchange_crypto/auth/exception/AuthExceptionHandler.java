@@ -2,6 +2,7 @@ package com.ntd.exchange_crypto.auth.exception;
 
 
 import com.ntd.exchange_crypto.common.dto.response.APIResponse;
+import dev.samstevens.totp.exceptions.QrGenerationException;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -54,4 +55,18 @@ public class AuthExceptionHandler {
 
         return ResponseEntity.status(errorCode.getHttpStatusCode()).body(response);
     }
+
+//    @ExceptionHandler(QrGenerationException.class)
+//    public ResponseEntity<APIResponse<Void>> handleQrGenerateException(QrGenerationException exception) {
+//
+//        AuthErrorCode errorCode = AuthErrorCode.UNAUTHORIZED;
+//        APIResponse<Void> response = new APIResponse<>(
+//                false,
+//                errorCode.getCode(),
+//                errorCode.getMessage(),
+//                null
+//        );
+//
+//        return ResponseEntity.status(errorCode.getHttpStatusCode()).body(response);
+//    }
 }

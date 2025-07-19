@@ -21,5 +21,5 @@ spring:
 
 auth:
   signer-key: "UwQQGr3/Fi21btHXjPqoUSPFF6X9TSBLtPBoerP2+ykB7HfNGs4g940yZWelH+MV"
-  valid-duration: 86400 # in second
+  valid-duration: 86400 # in second : 1 day
   refreshable-duration: 259200 # in second
