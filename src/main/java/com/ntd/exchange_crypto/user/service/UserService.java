@@ -1,5 +1,6 @@
 package com.ntd.exchange_crypto.user.service;
 
+import com.ntd.exchange_crypto.auth.tfa.TwoFactorAuthenticationService;
 import com.ntd.exchange_crypto.user.dto.request.UserCreationRequest;
 import com.ntd.exchange_crypto.user.dto.response.UserResponse;
 import com.ntd.exchange_crypto.user.enums.Role;
@@ -30,12 +31,16 @@ import java.util.List;
 public class UserService {
     UserRepository userRepository;
     UserMapper userMapper;
+    TwoFactorAuthenticationService tfaService;
 
     public User createUser(UserCreationRequest userCreationRequest) {
 
         User user = userMapper.toUser(userCreationRequest);
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+
+
+
         try {
             HashSet<String> roles = new HashSet<>();
             roles.add(Role.USER.name());

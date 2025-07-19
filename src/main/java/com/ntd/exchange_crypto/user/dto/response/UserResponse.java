@@ -20,7 +20,7 @@ public class UserResponse {
     String phone;
     String avatar;
     boolean active;
-    boolean is2FAEnabled;
+    boolean tfaEnabled;
     Set<String> roles;
 
 }

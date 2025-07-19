@@ -39,9 +39,11 @@ public class User {
     boolean active = true;
 
     @Column(name = "is_2FA_enabled")
-    boolean is2FAEnabled = false;
+    boolean tfaEnabled = false;
 
     @Column(nullable = false)
     Set<String> roles;
+
+    String secret;
 
 }

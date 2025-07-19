@@ -5,17 +5,16 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.ntd.exchange_crypto.auth.dto.request.AuthenticationRequest;
-import com.ntd.exchange_crypto.auth.dto.request.IntrospectRequest;
-import com.ntd.exchange_crypto.auth.dto.request.LogoutRequest;
-import com.ntd.exchange_crypto.auth.dto.request.RefreshRequest;
+import com.ntd.exchange_crypto.auth.dto.request.*;
 import com.ntd.exchange_crypto.auth.dto.response.AuthenticationResponse;
 import com.ntd.exchange_crypto.auth.dto.response.IntrospectResponse;
+import com.ntd.exchange_crypto.auth.dto.response.TFAResponse;
 import com.ntd.exchange_crypto.auth.exception.AuthErrorCode;
 import com.ntd.exchange_crypto.auth.exception.AuthException;
 import com.ntd.exchange_crypto.auth.model.InvalidatedToken;
 import com.ntd.exchange_crypto.auth.repository.AuthenticationRepository;
 import com.ntd.exchange_crypto.auth.repository.InvalidatedTokenRepository;
+import com.ntd.exchange_crypto.auth.tfa.TwoFactorAuthenticationService;
 import com.ntd.exchange_crypto.user.model.User;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +22,8 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,7 @@ public class AuthenticationService {
 
     AuthenticationRepository authenticationRepository;
     InvalidatedTokenRepository tokenRepository;
+    TwoFactorAuthenticationService tfaService;
 
 
     @NonFinal
@@ -80,6 +82,23 @@ public class AuthenticationService {
 
     }
 
+
+    public TFAResponse enabledTwoFactorAuthentication() {
+        var context = SecurityContextHolder.getContext();
+        String email = context.getAuthentication().getName();
+        User user = authenticationRepository.findByEmail(email)
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_EXISTS));
+
+        if(!user.isTfaEnabled()) {
+            user.setSecret(tfaService.generateNewSecret());
+        }
+
+        authenticationRepository.save(user);
+        return TFAResponse.builder()
+                .secretImageUri(tfaService.generateQrCodeImageUri(user.getSecret()))
+                .tfaEnabled(true)
+                .build();
+    }
 
     private String buildScope(User user) {
         StringJoiner stringJoiner = new StringJoiner(" ");
@@ -159,8 +178,6 @@ public class AuthenticationService {
     }
 
 
-
-
     private SignedJWT verifyToken(String token, boolean isRefresh) throws ParseException, JOSEException {
         JWSVerifier verifier = new MACVerifier(SIGNER_KEY.getBytes());
 
@@ -193,6 +210,25 @@ public class AuthenticationService {
         } catch (AuthException e) {
             log.info("Token is expired");
         }
+    }
 
+    public AuthenticationResponse verifyCode(VerificationRequest verificationRequest) {
+        var context = SecurityContextHolder.getContext();
+        String email = context.getAuthentication().getName();
+
+        User user = authenticationRepository.findByEmail(email)
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_EXISTS));
+
+        if(tfaService.isOtpNotValid(user.getSecret(), verificationRequest.getCode())){
+            throw new AuthException(AuthErrorCode.INVALID_CODE);
+        }
+
+        user.setTfaEnabled(true);
+        authenticationRepository.save(user);
+        var token = generateToken(user);
+        return AuthenticationResponse.builder()
+                .token(token)
+                .isAuthenticated(true)
+                .build();
     }
 }
