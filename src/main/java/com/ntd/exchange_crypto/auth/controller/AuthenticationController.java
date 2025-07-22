@@ -29,9 +29,10 @@ public class AuthenticationController {
 
     // login
     @PostMapping("/login")
-    public ResponseEntity<APIResponse<AuthenticationResponse>> authenticate(
+    public ResponseEntity<APIResponse<?>> authenticate(
             @RequestBody @Valid AuthenticationRequest authenticationRequest) {
         AuthenticationResponse result = authenticationService.authenticated(authenticationRequest);
+
         APIResponse<AuthenticationResponse> response = new APIResponse<>(
                 true,
                 HttpStatus.OK.value(),

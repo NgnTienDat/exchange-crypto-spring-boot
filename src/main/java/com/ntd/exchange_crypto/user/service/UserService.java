@@ -31,7 +31,6 @@ import java.util.List;
 public class UserService {
     UserRepository userRepository;
     UserMapper userMapper;
-    TwoFactorAuthenticationService tfaService;
 
     public User createUser(UserCreationRequest userCreationRequest) {
 
