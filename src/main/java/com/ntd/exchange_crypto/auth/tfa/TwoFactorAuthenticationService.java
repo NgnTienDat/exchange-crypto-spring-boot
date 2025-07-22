@@ -24,9 +24,9 @@ public class TwoFactorAuthenticationService {
 
     public String generateQrCodeImageUri(String secret) {
         QrData data = new QrData.Builder()
-                .label("Crypto-base 2FA authentication")
+                .label("CryptoCoin 2FA authentication")
                 .secret(secret)
-                .issuer("Crypto-base")
+                .issuer("CryptoCoin.com")
                 .algorithm(HashingAlgorithm.SHA1)
                 .digits(6)
                 .period(30)

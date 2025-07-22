@@ -41,11 +41,14 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
+//                .csrf(csrf -> csrf
+//                        .ignoringRequestMatchers("/ws/**")
+//                )
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(request ->
                 request.requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS_POST).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_ENDPOINTS_GET).permitAll()
-
+                        .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated()
         );
 
@@ -78,34 +81,34 @@ public class SecurityConfig {
     }
 
 
-    @Bean
-    public CorsFilter corsFilter() {
-        CorsConfiguration corsConfiguration = new CorsConfiguration();
-
-        corsConfiguration.addAllowedOrigin("http://localhost:5173/");
-        corsConfiguration.addAllowedMethod("*");
-        corsConfiguration.addAllowedHeader("*");
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", corsConfiguration);
-
-        return new CorsFilter(source);
-    }
-
 //    @Bean
-//    public CorsConfigurationSource corsConfigurationSource() {
+//    public CorsFilter corsFilter() {
+//        CorsConfiguration corsConfiguration = new CorsConfiguration();
 //
-//        CorsConfiguration config = new CorsConfiguration();
-//
-//        config.setAllowedOrigins(List.of("http://localhost:5173")); // frontend origin
-//        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-//        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "uuidKey"));
-//        config.setExposedHeaders(List.of("Authorization"));
-//        config.setAllowCredentials(true); // Nếu dùng cookie/session
+//        corsConfiguration.addAllowedOrigin("http://localhost:5173");
+//        corsConfiguration.addAllowedMethod("*");
+//        corsConfiguration.addAllowedHeader("*");
 //
 //        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-//        source.registerCorsConfiguration("/**", config);
+//        source.registerCorsConfiguration("/**", corsConfiguration);
 //
-//        return source;
+//        return new CorsFilter(source);
 //    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+
+        CorsConfiguration config = new CorsConfiguration();
+
+        config.setAllowedOrigins(List.of("http://localhost:5173")); // frontend origin
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "uuidKey"));
+        config.setExposedHeaders(List.of("Authorization"));
+        config.setAllowCredentials(true); // Nếu dùng cookie/session
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+
+        return source;
+    }
 }

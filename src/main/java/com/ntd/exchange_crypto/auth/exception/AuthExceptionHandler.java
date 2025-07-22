@@ -16,17 +16,6 @@ import java.nio.file.AccessDeniedException;
 @Order(1)
 public class AuthExceptionHandler {
 
-//    @ExceptionHandler(RuntimeException.class)
-//    public ResponseEntity<APIResponse<Void>> handleRuntimeException(RuntimeException ex) {
-//
-//        APIResponse<Void> response = new APIResponse<>(
-//                false,
-//                AuthErrorCode.UNCATEGORIZED_ERROR.getCode(),
-//                ex.getMessage(),
-//                null
-//        );
-//        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-//    }
 
     @ExceptionHandler(AuthException.class)
     public ResponseEntity<APIResponse<Void>> handleAuthException(AuthException exception) {

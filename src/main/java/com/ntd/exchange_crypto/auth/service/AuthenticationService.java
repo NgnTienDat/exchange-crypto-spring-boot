@@ -66,6 +66,8 @@ public class AuthenticationService {
         User user = authenticationRepository.findByEmail(authenticationRequest.getEmail())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_EXISTS));
 
+        if (!user.isActive()) throw new AuthException(AuthErrorCode.ACCOUNT_LOCKED);
+
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
 
         boolean isAuthenticated = passwordEncoder.matches(authenticationRequest.getPassword(), user.getPassword());
