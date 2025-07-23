@@ -6,10 +6,9 @@ import com.ntd.exchange_crypto.market.dto.event.MarketDataReceivedEvent;
 import com.ntd.exchange_crypto.market.model.MarketData;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -38,11 +37,16 @@ public class CoinbaseWebSocketService {
     private WebSocketSession session;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
+    @NonFinal
+    @Value("${app.coinbase.websocket-url}")
+    protected String COINBASE_WEBSOCKET_URL;
+
     public CoinbaseWebSocketService(ApplicationEventPublisher eventPublisher, ObjectMapper objectMapper) {
         this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
         this.subscribedProducts = List.of("BTC-USD"); // Configure via properties
     }
+    //, "ETH-USD", "DOGE-USD", "USDT-USD", "XRP-USD"
 
     @PostConstruct
     @Async("coinbaseExecutor")
@@ -54,7 +58,7 @@ public class CoinbaseWebSocketService {
             session = webSocketClient.execute(
                     new CoinbaseWebSocketHandler(),
                     headers,
-                    URI.create("wss://advanced-trade-ws.coinbase.com")
+                    URI.create(COINBASE_WEBSOCKET_URL)
             ).get();
 
             // Schedule heartbeat to keep connection alive
