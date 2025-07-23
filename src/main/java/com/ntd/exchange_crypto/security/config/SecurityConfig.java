@@ -41,9 +41,6 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
-//                .csrf(csrf -> csrf
-//                        .ignoringRequestMatchers("/ws/**")
-//                )
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(request ->
                 request.requestMatchers(HttpMethod.POST, PUBLIC_ENDPOINTS_POST).permitAll()
