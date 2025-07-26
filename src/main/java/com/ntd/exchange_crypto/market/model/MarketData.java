@@ -9,10 +9,15 @@ import java.time.Instant;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 public class MarketData {
     private String productId;
     private BigDecimal price;
-    BigDecimal priceChange24h;
     private BigDecimal volume24h;
+    private BigDecimal low24h;
+    private BigDecimal high24h;
+    private BigDecimal low52w;
+    private BigDecimal high52w;
+    private BigDecimal priceChangePercent24h;
     private Instant timestamp;
 }
