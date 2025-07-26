@@ -4,6 +4,7 @@ import com.ntd.exchange_crypto.market.dto.event.MarketDataReceivedEvent;
 import com.ntd.exchange_crypto.market.dto.event.MarketDataUpdatedEvent;
 import com.ntd.exchange_crypto.market.dto.response.MarketTickerResponse;
 import com.ntd.exchange_crypto.market.mapper.MarketDataMapper;
+import com.ntd.exchange_crypto.market.mapper.MarketDataMapperMyImpl;
 import com.ntd.exchange_crypto.market.model.MarketData;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,7 @@ import java.util.List;
 public class MarketDataProcessor {
 
     ApplicationEventPublisher eventPublisher;
-    MarketDataMapper marketDataMapper;
+    MarketDataMapperMyImpl marketDataMapper;
 
     @EventListener
     @Async("websocketExecutor")

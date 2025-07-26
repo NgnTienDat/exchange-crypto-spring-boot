@@ -6,8 +6,12 @@ import java.time.Instant;
 public record MarketTickerResponse(
         String productId,
         BigDecimal price,
-        BigDecimal priceChange24h,
         BigDecimal volume24h,
-        String trend, // UP, DOWN, STABLE
+        BigDecimal low24h,
+        BigDecimal high24h,
+        BigDecimal low52w,
+        BigDecimal high52w,
+        BigDecimal priceChangePercent24h,
+        String trend, // "UP", "DOWN", "STABLE"
         Instant timestamp
 ) {}

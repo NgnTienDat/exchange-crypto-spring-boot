@@ -44,7 +44,7 @@ public class CoinbaseWebSocketService {
     public CoinbaseWebSocketService(ApplicationEventPublisher eventPublisher, ObjectMapper objectMapper) {
         this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
-        this.subscribedProducts = List.of("BTC-USD"); // Configure via properties
+        this.subscribedProducts = List.of("BTC-USD", "ETH-USD","DOGE-USD", "USDT-USD", "XRP-USD"); // Configure via properties
     }
     //, "ETH-USD", "DOGE-USD", "USDT-USD", "XRP-USD"
 
@@ -54,7 +54,7 @@ public class CoinbaseWebSocketService {
         try {
             WebSocketClient webSocketClient = new StandardWebSocketClient();
             WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
-
+            log.info("URL WS {}", COINBASE_WEBSOCKET_URL);
             session = webSocketClient.execute(
                     new CoinbaseWebSocketHandler(),
                     headers,
@@ -91,7 +91,7 @@ public class CoinbaseWebSocketService {
         try {
             Map<String, Object> subscribeMsg = Map.of(
                     "type", "subscribe",
-                    "channel", "ticker",
+                    "channel", "ticker_batch",
                     "product_ids", subscribedProducts
             );
 
@@ -104,74 +104,37 @@ public class CoinbaseWebSocketService {
         }
     }
 
-//    private void handleTickerMessage(String message) {
-//        try {
-//            JsonNode jsonNode = objectMapper.readTree(message);
-//
-//            if ("ticker".equals(jsonNode.get("channel").asText())) {
-//                String productId = jsonNode.get("product_id").asText();
-//                BigDecimal price = new BigDecimal(jsonNode.get("price").asText());
-//                BigDecimal volume24h = new BigDecimal(jsonNode.get("volume_24_h").asText());
-//
-//                // Calculate price change (simplified - you might want to store previous prices)
-//                BigDecimal priceChange24h = BigDecimal.ZERO; // Implement logic
-//
-//                MarketData marketData = new MarketData();
-//                marketData.setProductId(productId);
-//                marketData.setPrice(price);
-//                marketData.setPriceChange24h(priceChange24h);
-//                marketData.setVolume24h(volume24h);
-//                marketData.setTimestamp(Instant.now());
-//
-//                // Publish domain event
-//                eventPublisher.publishEvent(new MarketDataReceivedEvent(marketData));
-//
-//            }
-//        } catch (Exception e) {
-//            log.error("Error processing ticker message: {}", message, e);
-//        }
-//    }
-// market/service/CoinbaseWebSocketService.java
-
     private void handleTickerMessage(String message) {
         try {
             JsonNode rootNode = objectMapper.readTree(message);
-
-            // Kiểm tra xem có phải là message từ kênh "ticker" không
-            if (rootNode.has("channel") && "ticker".equals(rootNode.get("channel").asText())) {
-
-                // 1. Lấy ra mảng "events"
+            if (rootNode.has("channel") && "ticker_batch".equals(rootNode.get("channel").asText())) {
                 JsonNode eventsNode = rootNode.get("events");
                 if (eventsNode != null && eventsNode.isArray()) {
-
-                    // 2. Lặp qua từng "event" trong mảng
                     for (JsonNode event : eventsNode) {
-
-                        // 3. Lấy ra mảng "tickers" từ bên trong event
                         JsonNode tickersNode = event.get("tickers");
                         if (tickersNode != null && tickersNode.isArray()) {
-
-                            // 4. Lặp qua từng "ticker" trong mảng
                             for (JsonNode ticker : tickersNode) {
-
-                                // 5. Bây giờ mới lấy dữ liệu từ đối tượng ticker
                                 String productId = ticker.get("product_id").asText();
                                 BigDecimal price = new BigDecimal(ticker.get("price").asText());
                                 BigDecimal volume24h = new BigDecimal(ticker.get("volume_24_h").asText());
+                                BigDecimal low24h = new BigDecimal(ticker.get("low_24_h").asText());
+                                BigDecimal high24h = new BigDecimal(ticker.get("high_24_h").asText());
+                                BigDecimal low52w = new BigDecimal(ticker.get("low_52_w").asText());
+                                BigDecimal high52w = new BigDecimal(ticker.get("high_52_w").asText());
+                                BigDecimal priceChangePercent24h = new BigDecimal(ticker.get("price_percent_chg_24_h").asText());
 
-                                // Lấy các trường khác nếu cần...
-                                // BigDecimal priceChange24h = new BigDecimal(ticker.get("price_percent_chg_24_h").asText());
+                                MarketData marketData = MarketData.builder()
+                                        .productId(productId)
+                                        .price(price)
+                                        .volume24h(volume24h)
+                                        .low24h(low24h)
+                                        .high24h(high24h)
+                                        .low52w(low52w)
+                                        .high52w(high52w)
+                                        .priceChangePercent24h(priceChangePercent24h)
+                                        .timestamp(Instant.now()) // hoặc parse từ rootNode.get("timestamp")
+                                        .build();
 
-                                // Tạo đối tượng MarketData
-                                MarketData marketData = new MarketData();
-                                marketData.setProductId(productId);
-                                marketData.setPrice(price);
-                                // Tính toán priceChange24h nếu cần
-                                marketData.setPriceChange24h(BigDecimal.ZERO); // Tạm thời
-                                marketData.setVolume24h(volume24h);
-                                marketData.setTimestamp(Instant.now());
-
-                                // Publish domain event
                                 log.debug("Processed ticker for {}: {}", productId, price);
                                 eventPublisher.publishEvent(new MarketDataReceivedEvent(marketData));
                             }
@@ -183,6 +146,58 @@ public class CoinbaseWebSocketService {
             log.error("Error processing ticker message: {}", message, e);
         }
     }
+
+
+//    private void handleTickerMessage(String message) {
+//        try {
+//            JsonNode rootNode = objectMapper.readTree(message);
+//
+//            // Kiểm tra xem có phải là message từ kênh "ticker" không
+//            if (rootNode.has("channel") && "ticker_batch".equals(rootNode.get("channel").asText())) {
+//
+//                // 1. Lấy ra mảng "events"
+//                JsonNode eventsNode = rootNode.get("events");
+//                if (eventsNode != null && eventsNode.isArray()) {
+//
+//                    // 2. Lặp qua từng "event" trong mảng
+//                    for (JsonNode event : eventsNode) {
+//
+//                        // 3. Lấy ra mảng "tickers" từ bên trong event
+//                        JsonNode tickersNode = event.get("tickers");
+//                        if (tickersNode != null && tickersNode.isArray()) {
+//
+//                            // 4. Lặp qua từng "ticker" trong mảng
+//                            for (JsonNode ticker : tickersNode) {
+//
+//                                // 5. Bây giờ mới lấy dữ liệu từ đối tượng ticker
+//                                String productId = ticker.get("product_id").asText();
+//                                BigDecimal price = new BigDecimal(ticker.get("price").asText());
+//                                BigDecimal volume24h = new BigDecimal(ticker.get("volume_24_h").asText());
+//
+//                                // Lấy các trường khác nếu cần...
+//                                // BigDecimal priceChange24h = new BigDecimal(ticker.get("price_percent_chg_24_h").asText());
+//
+//                                // Tạo đối tượng MarketData
+//                                MarketData marketData = new MarketData();
+//                                marketData.setProductId(productId);
+//                                marketData.setPrice(price);
+//                                // Tính toán priceChange24h nếu cần
+//                                marketData.setPriceChange24h(BigDecimal.ZERO); // Tạm thời
+//                                marketData.setVolume24h(volume24h);
+//                                marketData.setTimestamp(Instant.now());
+//
+//                                // Publish domain event
+//                                log.debug("Processed ticker for {}: {}", productId, price);
+//                                eventPublisher.publishEvent(new MarketDataReceivedEvent(marketData));
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        } catch (Exception e) {
+//            log.error("Error processing ticker message: {}", message, e);
+//        }
+//    }
 
     private class CoinbaseWebSocketHandler extends TextWebSocketHandler {
 
