@@ -1,7 +1,6 @@
-package com.ntd.exchange_crypto.common.websocket.service;
+package com.ntd.exchange_crypto.websocket.service;
 
-import com.ntd.exchange_crypto.common.websocket.event.WebSocketMessageEvent;
-import com.ntd.exchange_crypto.market.dto.event.MarketDataUpdatedEvent;
+import com.ntd.exchange_crypto.common.WebSocketMessageEvent;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;

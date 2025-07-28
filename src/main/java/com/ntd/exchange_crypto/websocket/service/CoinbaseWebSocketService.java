@@ -1,9 +1,9 @@
-package com.ntd.exchange_crypto.common.websocket.service;
+package com.ntd.exchange_crypto.websocket.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ntd.exchange_crypto.market.dto.event.MarketDataReceivedEvent;
-import com.ntd.exchange_crypto.market.model.MarketData;
+import com.ntd.exchange_crypto.market.MarketDataReceivedEvent;
+import com.ntd.exchange_crypto.market.MarketData;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.experimental.NonFinal;
@@ -44,7 +44,7 @@ public class CoinbaseWebSocketService {
     public CoinbaseWebSocketService(ApplicationEventPublisher eventPublisher, ObjectMapper objectMapper) {
         this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
-        this.subscribedProducts = List.of("BTC-USD", "ETH-USD","DOGE-USD", "USDT-USD", "XRP-USD"); // Configure via properties
+        this.subscribedProducts = List.of("BTC-USD", "ETH-USD", "DOGE-USD", "USDT-USD", "XRP-USD"); // Configure via properties
     }
     //, "ETH-USD", "DOGE-USD", "USDT-USD", "XRP-USD"
 
@@ -147,57 +147,6 @@ public class CoinbaseWebSocketService {
         }
     }
 
-
-//    private void handleTickerMessage(String message) {
-//        try {
-//            JsonNode rootNode = objectMapper.readTree(message);
-//
-//            // Kiểm tra xem có phải là message từ kênh "ticker" không
-//            if (rootNode.has("channel") && "ticker_batch".equals(rootNode.get("channel").asText())) {
-//
-//                // 1. Lấy ra mảng "events"
-//                JsonNode eventsNode = rootNode.get("events");
-//                if (eventsNode != null && eventsNode.isArray()) {
-//
-//                    // 2. Lặp qua từng "event" trong mảng
-//                    for (JsonNode event : eventsNode) {
-//
-//                        // 3. Lấy ra mảng "tickers" từ bên trong event
-//                        JsonNode tickersNode = event.get("tickers");
-//                        if (tickersNode != null && tickersNode.isArray()) {
-//
-//                            // 4. Lặp qua từng "ticker" trong mảng
-//                            for (JsonNode ticker : tickersNode) {
-//
-//                                // 5. Bây giờ mới lấy dữ liệu từ đối tượng ticker
-//                                String productId = ticker.get("product_id").asText();
-//                                BigDecimal price = new BigDecimal(ticker.get("price").asText());
-//                                BigDecimal volume24h = new BigDecimal(ticker.get("volume_24_h").asText());
-//
-//                                // Lấy các trường khác nếu cần...
-//                                // BigDecimal priceChange24h = new BigDecimal(ticker.get("price_percent_chg_24_h").asText());
-//
-//                                // Tạo đối tượng MarketData
-//                                MarketData marketData = new MarketData();
-//                                marketData.setProductId(productId);
-//                                marketData.setPrice(price);
-//                                // Tính toán priceChange24h nếu cần
-//                                marketData.setPriceChange24h(BigDecimal.ZERO); // Tạm thời
-//                                marketData.setVolume24h(volume24h);
-//                                marketData.setTimestamp(Instant.now());
-//
-//                                // Publish domain event
-//                                log.debug("Processed ticker for {}: {}", productId, price);
-//                                eventPublisher.publishEvent(new MarketDataReceivedEvent(marketData));
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        } catch (Exception e) {
-//            log.error("Error processing ticker message: {}", message, e);
-//        }
-//    }
 
     private class CoinbaseWebSocketHandler extends TextWebSocketHandler {
 

@@ -1,11 +1,10 @@
 package com.ntd.exchange_crypto.market.service;
 
-import com.ntd.exchange_crypto.market.dto.event.MarketDataReceivedEvent;
-import com.ntd.exchange_crypto.market.dto.event.MarketDataUpdatedEvent;
+import com.ntd.exchange_crypto.market.MarketDataReceivedEvent;
+import com.ntd.exchange_crypto.market.MarketDataUpdatedEvent;
 import com.ntd.exchange_crypto.market.dto.response.MarketTickerResponse;
-import com.ntd.exchange_crypto.market.mapper.MarketDataMapper;
 import com.ntd.exchange_crypto.market.mapper.MarketDataMapperMyImpl;
-import com.ntd.exchange_crypto.market.model.MarketData;
+import com.ntd.exchange_crypto.market.MarketData;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -16,14 +15,12 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-
 @Service
 @Transactional
 @Slf4j
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class MarketDataProcessor {
+public class MarketDataService {
 
     ApplicationEventPublisher eventPublisher;
     MarketDataMapperMyImpl marketDataMapper;
@@ -34,11 +31,8 @@ public class MarketDataProcessor {
         try {
             MarketData marketData = event.marketData();
 
-
-            // Convert to response DTO
             MarketTickerResponse response = marketDataMapper.toResponse(marketData);
 
-            // Publish WebSocket event
             eventPublisher.publishEvent(new MarketDataUpdatedEvent(response));
 
         } catch (Exception e) {
@@ -46,17 +40,4 @@ public class MarketDataProcessor {
         }
     }
 
-//    @EventListener
-//    @Async("websocketExecutor")
-//    public void handleBatchUpdate(List<MarketDataReceivedEvent> events) {
-//        // Handle batch processing for better performance
-//        List<MarketTickerResponse> responses = events.stream()
-//                .map(event -> {
-//                    MarketData saved = repository.save(event.marketData());
-//                    return mapper.toResponse(saved);
-//                })
-//                .toList();
-//
-//        eventPublisher.publishEvent(new MarketDataBatchEvent(responses));
-//    }
 }
