@@ -1,4 +1,4 @@
-package com.ntd.exchange_crypto.common.config;
+package com.ntd.exchange_crypto.websocket.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

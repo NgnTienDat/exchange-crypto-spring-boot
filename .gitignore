@@ -34,3 +34,5 @@ build/
 
 ### Enviroment file ###
 .env
+
+/src/test/resources/application-test.yml

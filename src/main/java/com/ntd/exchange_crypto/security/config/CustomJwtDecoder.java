@@ -1,6 +1,7 @@
 package com.ntd.exchange_crypto.security.config;
 
 import com.nimbusds.jose.JOSEException;
+import com.ntd.exchange_crypto.auth.AuthenticationExternalAPI;
 import com.ntd.exchange_crypto.auth.dto.request.IntrospectRequest;
 import com.ntd.exchange_crypto.auth.service.AuthenticationService;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,7 @@ public class CustomJwtDecoder implements JwtDecoder {
     private String signerKey;
 
 
-    private final AuthenticationService authenticationService;
+    private final AuthenticationExternalAPI authenticationService;
 
     private NimbusJwtDecoder nimbusJwtDecoder = null;
 

@@ -1,4 +1,4 @@
-package com.ntd.exchange_crypto.auth.tfa;
+package com.ntd.exchange_crypto.auth.service;
 
 import dev.samstevens.totp.code.*;
 import dev.samstevens.totp.exceptions.QrGenerationException;

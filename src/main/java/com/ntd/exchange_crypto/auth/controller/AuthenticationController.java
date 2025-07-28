@@ -6,7 +6,6 @@ import com.ntd.exchange_crypto.auth.dto.response.AuthenticationResponse;
 import com.ntd.exchange_crypto.auth.dto.response.IntrospectResponse;
 import com.ntd.exchange_crypto.auth.dto.response.TFAResponse;
 import com.ntd.exchange_crypto.auth.service.AuthenticationService;
-import com.ntd.exchange_crypto.auth.tfa.TwoFactorAuthenticationService;
 import com.ntd.exchange_crypto.common.dto.response.APIResponse;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -25,13 +24,12 @@ import java.text.ParseException;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthenticationController {
     AuthenticationService authenticationService;
-    TwoFactorAuthenticationService tfaService;
 
     // login
     @PostMapping("/login")
     public ResponseEntity<APIResponse<?>> authenticate(
             @RequestBody @Valid AuthenticationRequest authenticationRequest) {
-        AuthenticationResponse result = authenticationService.authenticated(authenticationRequest);
+        AuthenticationResponse result = authenticationService.authenticate(authenticationRequest);
 
         APIResponse<AuthenticationResponse> response = new APIResponse<>(
                 true,
@@ -92,7 +90,7 @@ public class AuthenticationController {
                 .success(true)
                 .code(HttpStatus.OK.value())
                 .message("Enable 2FA")
-                .result(authenticationService.enabledTwoFactorAuthentication())
+                .result(authenticationService.enableTwoFactorAuthentication())
                 .build();
         return new ResponseEntity<>(response, HttpStatus.OK);
     }

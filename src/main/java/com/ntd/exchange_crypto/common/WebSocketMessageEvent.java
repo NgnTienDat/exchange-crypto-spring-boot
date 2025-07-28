@@ -1,6 +1,5 @@
-package com.ntd.exchange_crypto.common.websocket.event;
+package com.ntd.exchange_crypto.common;
 
-import com.ntd.exchange_crypto.market.dto.response.MarketTickerResponse;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 

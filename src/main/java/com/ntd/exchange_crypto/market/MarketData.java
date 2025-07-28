@@ -1,4 +1,4 @@
-package com.ntd.exchange_crypto.market.model;
+package com.ntd.exchange_crypto.market;
 
 import lombok.*;
 

@@ -1,7 +1,7 @@
 package com.ntd.exchange_crypto.market.mapper;
 
 import com.ntd.exchange_crypto.market.dto.response.MarketTickerResponse;
-import com.ntd.exchange_crypto.market.model.MarketData;
+import com.ntd.exchange_crypto.market.MarketData;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
