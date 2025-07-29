@@ -16,12 +16,12 @@
 //
 //@Configuration
 //@RequiredArgsConstructor
-//@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+////@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 //@Slf4j
 //public class ApplicationInitConfig {
 //
-//    PasswordEncoder passwordEncoder;
-//    UserInternalAPI userService;
+//    private final PasswordEncoder passwordEncoder;
+//    private final UserInternalAPI userService;
 //
 //    @Bean
 //    ApplicationRunner applicationRunner() {

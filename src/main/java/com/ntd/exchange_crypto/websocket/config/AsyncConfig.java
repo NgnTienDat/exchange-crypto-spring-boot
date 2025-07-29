@@ -14,9 +14,11 @@ public class AsyncConfig {
     public Executor websocketExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(20);
-        executor.setQueueCapacity(500);
+        executor.setMaxPoolSize(50); // Tăng maxPoolSize để xử lý tải cao hơn
+        executor.setQueueCapacity(1000); // Tăng queueCapacity để chứa nhiều task hơn
         executor.setThreadNamePrefix("WebSocket-");
+        executor.setRejectedExecutionHandler((r, e)
+                -> log.warn("Task rejected from WebSocketExecutor: {}", r)); // Log khi task bị từ chối
         executor.initialize();
         return executor;
     }
@@ -25,10 +27,15 @@ public class AsyncConfig {
     public Executor coinbaseExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(5);
-        executor.setQueueCapacity(100);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(200);
         executor.setThreadNamePrefix("Coinbase-");
+        executor.setRejectedExecutionHandler((r, e)
+                -> log.warn("Task rejected from CoinbaseExecutor: {}", r));
         executor.initialize();
         return executor;
     }
+
+    // Thêm logging để debug
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AsyncConfig.class);
 }
