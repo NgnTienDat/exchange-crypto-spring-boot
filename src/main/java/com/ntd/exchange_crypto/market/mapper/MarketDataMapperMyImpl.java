@@ -1,7 +1,9 @@
 package com.ntd.exchange_crypto.market.mapper;
 
+import com.ntd.exchange_crypto.market.OrderBookData;
 import com.ntd.exchange_crypto.market.dto.response.MarketTickerResponse;
 import com.ntd.exchange_crypto.market.MarketData;
+import com.ntd.exchange_crypto.market.dto.response.OrderBookResponse;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -35,18 +37,33 @@ public class MarketDataMapperMyImpl implements MarketDataMapper {
             trend = "DOWN";
         }
 
-        return new MarketTickerResponse(
-                productId,
-                price,
-                volume24h,
-                low24h,
-                high24h,
-                low52w,
-                high52w,
-                priceChangePercent24h,
-                trend,
-                timestamp
-        );
+        return MarketTickerResponse.builder()
+                .productId(productId)
+                .price(price)
+                .volume24h(volume24h)
+                .high24h(high24h)
+                .low24h(low24h)
+                .low52w(low52w)
+                .high52w(high52w)
+                .priceChangePercent24h(priceChangePercent24h)
+                .trend(trend)
+                .timestamp(timestamp)
+                .build();
+    }
+
+    @Override
+    public OrderBookResponse toOrderBookResponse(OrderBookData orderBookData) {
+        if (orderBookData == null) {
+            return null;
+        }
+
+        return OrderBookResponse.builder()
+                .productId(orderBookData.getProductId())
+                .side(orderBookData.getSide())
+                .priceLevel(orderBookData.getPriceLevel())
+                .newQuantity(orderBookData.getNewQuantity())
+                .timestamp(orderBookData.getTimestamp())
+                .build();
     }
 }
 
