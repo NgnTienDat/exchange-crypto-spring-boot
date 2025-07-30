@@ -88,6 +88,9 @@ public class MarketDataService {
     public void handleMarketDataReceived(MarketDataReceivedEvent event) {
         try {
             MarketData marketData = event.marketData();
+
+//            System.out.println("MARKET DATA: "+marketData);
+
             MarketTickerResponse response = marketDataMapper.toResponse(marketData);
             eventPublisher.publishEvent(new MarketDataUpdatedEvent(response));
         } catch (Exception e) {

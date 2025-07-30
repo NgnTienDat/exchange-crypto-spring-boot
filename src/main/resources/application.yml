@@ -24,12 +24,11 @@ auth:
 app:
   coinbase:
     websocket-url: ${COINBASE_WEBSOCKET_URL}
-    subscribed-products:
-      - BTC-USD
-      - ETH-USD
-      - ADA-USD
-    reconnect-delay: 5s
-    heartbeat-interval: 30s
+
+
+  binance:
+    websocket-url: wss://stream.binance.com:9443/ws
+    ticker-symbols: btcusdt, ethusdt, adausdt, dotusdt, bnbusdt, solusdt
 
   websocket:
     thread-pool:
