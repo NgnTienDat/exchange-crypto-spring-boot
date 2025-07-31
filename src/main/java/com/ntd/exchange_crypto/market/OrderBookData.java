@@ -2,8 +2,7 @@ package com.ntd.exchange_crypto.market;
 
 import lombok.*;
 
-import java.math.BigDecimal;
-import java.time.Instant;
+import java.util.List;
 
 @Getter
 @Setter
@@ -12,8 +11,8 @@ import java.time.Instant;
 @Builder
 public class OrderBookData {
     private String productId;
-    private String side; // bid & offer
-    private BigDecimal priceLevel;
-    private BigDecimal newQuantity;
-    private Instant timestamp;
+    private List<OrderBookEntry> bids;
+    private List<OrderBookEntry> asks;
+    private Long lastUpdateId;
 }
+

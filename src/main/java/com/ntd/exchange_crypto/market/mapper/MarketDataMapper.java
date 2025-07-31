@@ -1,6 +1,8 @@
 package com.ntd.exchange_crypto.market.mapper;
 
+import com.ntd.exchange_crypto.market.CandleStick;
 import com.ntd.exchange_crypto.market.OrderBookData;
+import com.ntd.exchange_crypto.market.dto.response.CandleStickResponse;
 import com.ntd.exchange_crypto.market.dto.response.MarketTickerResponse;
 import com.ntd.exchange_crypto.market.MarketData;
 import com.ntd.exchange_crypto.market.dto.response.OrderBookResponse;
@@ -9,4 +11,5 @@ import com.ntd.exchange_crypto.market.dto.response.OrderBookResponse;
 public interface MarketDataMapper {
     MarketTickerResponse toResponse(MarketData marketData);
     OrderBookResponse toOrderBookResponse(OrderBookData orderBookData);
+    CandleStickResponse toCandleStickResponse(CandleStick candleStick);
 }

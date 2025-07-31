@@ -20,6 +20,7 @@ public enum ErrorCode {
     INVALID_DOB(1008, "Invalid date of birth", HttpStatus.BAD_REQUEST),
     UNAUTHENTICATED(2001, "Unauthenticated", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED(2003, "You dont have permission", HttpStatus.FORBIDDEN),
+//    SUBSCRIBE_FAILED(2004, "You dont have permission", HttpStatus.FORBIDDEN),
     ;
 
     private int code;

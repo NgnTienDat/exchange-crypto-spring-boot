@@ -1,15 +1,15 @@
 package com.ntd.exchange_crypto.market.dto.response;
 
+import com.ntd.exchange_crypto.market.OrderBookEntry;
 import lombok.Builder;
 
-import java.math.BigDecimal;
-import java.time.Instant;
+import java.util.List;
 
 @Builder
 public record OrderBookResponse(
         String productId,
-        String side, // bid & offer
-        BigDecimal priceLevel,
-        BigDecimal newQuantity,
-        Instant timestamp
+        List<OrderBookEntry> bids,
+        List<OrderBookEntry> asks,
+        Long lastUpdateId
 ) {}
+

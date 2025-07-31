@@ -60,6 +60,7 @@
 package com.ntd.exchange_crypto.market.service;
 
 import com.ntd.exchange_crypto.market.*;
+import com.ntd.exchange_crypto.market.dto.response.CandleStickResponse;
 import com.ntd.exchange_crypto.market.dto.response.MarketTickerResponse;
 import com.ntd.exchange_crypto.market.dto.response.OrderBookResponse;
 import com.ntd.exchange_crypto.market.mapper.MarketDataMapperMyImpl;
@@ -89,8 +90,6 @@ public class MarketDataService {
         try {
             MarketData marketData = event.marketData();
 
-//            System.out.println("MARKET DATA: "+marketData);
-
             MarketTickerResponse response = marketDataMapper.toResponse(marketData);
             eventPublisher.publishEvent(new MarketDataUpdatedEvent(response));
         } catch (Exception e) {
@@ -103,8 +102,6 @@ public class MarketDataService {
     public void handleOrderBookReceived(OrderBookReceivedEvent event) {
         try {
             OrderBookData orderBookData = event.orderBookData();
-            log.debug("Processing order book update for {}: {} at {}",
-                    orderBookData.getProductId(), orderBookData.getSide(), orderBookData.getPriceLevel());
 
             OrderBookResponse response = marketDataMapper.toOrderBookResponse(orderBookData);
             eventPublisher.publishEvent(new OrderBookUpdatedEvent(response));
@@ -112,6 +109,19 @@ public class MarketDataService {
             log.error("Error processing order book update: {}", event.orderBookData(), e);
             // Thêm retry logic nếu cần
             retryHandleOrderBookReceived(event);
+        }
+    }
+
+    @EventListener
+    @Async("websocketExecutor")
+    public void handleCandleStickReceived(CandleStickReceivedEvent event) {
+        try {
+            CandleStick candleStick = event.candleStick();
+
+            CandleStickResponse response = marketDataMapper.toCandleStickResponse(candleStick);
+            eventPublisher.publishEvent(new CandleStickUpdatedEvent(response));
+        } catch (Exception e) {
+            log.error("Error processing order book update: {}", event.candleStick(), e);
         }
     }
 
