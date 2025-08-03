@@ -62,6 +62,7 @@ package com.ntd.exchange_crypto.market.service;
 import com.ntd.exchange_crypto.market.*;
 import com.ntd.exchange_crypto.market.dto.response.CandleStickResponse;
 import com.ntd.exchange_crypto.market.dto.response.MarketTickerResponse;
+import com.ntd.exchange_crypto.market.dto.response.MarketTradeResponse;
 import com.ntd.exchange_crypto.market.dto.response.OrderBookResponse;
 import com.ntd.exchange_crypto.market.mapper.MarketDataMapperMyImpl;
 import lombok.AccessLevel;
@@ -122,6 +123,20 @@ public class MarketDataService {
             eventPublisher.publishEvent(new CandleStickUpdatedEvent(response));
         } catch (Exception e) {
             log.error("Error processing order book update: {}", event.candleStick(), e);
+        }
+    }
+
+
+    @EventListener
+    @Async("websocketExecutor")
+    public void handleMarketTradeReceived(MarketTradeReceivedEvent event) {
+        try {
+            MarketTrade marketTrade = event.marketTrade();
+
+            MarketTradeResponse response = marketDataMapper.toMarketTradeResponse(marketTrade);
+            eventPublisher.publishEvent(new MarketTradeUpdatedEvent(response));
+        } catch (Exception e) {
+            log.error("Error processing order book update: {}", event.marketTrade(), e);
         }
     }
 

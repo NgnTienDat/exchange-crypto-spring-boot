@@ -1,11 +1,9 @@
 package com.ntd.exchange_crypto.market.mapper;
 
-import com.ntd.exchange_crypto.market.CandleStick;
-import com.ntd.exchange_crypto.market.OrderBookData;
-import com.ntd.exchange_crypto.market.OrderBookEntry;
+import com.ntd.exchange_crypto.market.*;
 import com.ntd.exchange_crypto.market.dto.response.CandleStickResponse;
 import com.ntd.exchange_crypto.market.dto.response.MarketTickerResponse;
-import com.ntd.exchange_crypto.market.MarketData;
+import com.ntd.exchange_crypto.market.dto.response.MarketTradeResponse;
 import com.ntd.exchange_crypto.market.dto.response.OrderBookResponse;
 import org.springframework.stereotype.Component;
 
@@ -101,6 +99,23 @@ public class MarketDataMapperMyImpl implements MarketDataMapper {
                 .volume(candleStick.getVolume())
                 .totalVolume(candleStick.getTotalVolume())
                 .isFinal(candleStick.isFinal())
+                .build();
+    }
+
+    @Override
+    public MarketTradeResponse toMarketTradeResponse(MarketTrade marketTrade) {
+        if (marketTrade == null) {
+            return null;
+        }
+
+        return MarketTradeResponse.builder()
+                .productId(marketTrade.getProductId())
+                .tradeId(marketTrade.getTradeId())
+                .price(marketTrade.getPrice())
+                .quantity(marketTrade.getQuantity())
+                .totalValue(marketTrade.getTotalValue())
+                .isMaker(marketTrade.isMaker())
+                .tradeTime(marketTrade.getTradeTime())
                 .build();
     }
 }

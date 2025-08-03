@@ -121,6 +121,7 @@ public class BinanceWebSocketService {
             if (!activeDepthSubscriptions.contains(productId)) {
                 String depthStream = productId.toLowerCase() + "@depth10";
                 String klineStream = productId.toLowerCase() + "@kline_1m";
+                String tradeStream = productId.toLowerCase() + "@trade";
                 String wsUrl = BINANCE_WEBSOCKET_URL;
 
                 WebSocketContainer container = ContainerProvider.getWebSocketContainer();
@@ -140,7 +141,7 @@ public class BinanceWebSocketService {
 
                 // Subscribe to both depth and kline streams
                 String subscriptionMessage = "{\"method\": \"SUBSCRIBE\", " +
-                        "\"params\": [\"" + depthStream + "\", \"" + klineStream + "\"], " +
+                        "\"params\": [\"" + depthStream + "\", \"" + klineStream + "\", \"" + tradeStream + "\"], " +
                         "\"id\": 2}";
 
                 session.sendMessage(new TextMessage(subscriptionMessage)); //send subscribe
@@ -291,6 +292,31 @@ public class BinanceWebSocketService {
 
                 eventPublisher.publishEvent(new CandleStickReceivedEvent(candleStick));
             }
+
+            if (rootNode.has("e") &&
+                    rootNode.get("e").asText().equals("trade")) {
+
+                String tradeProductId = rootNode.get("s").asText(); // Sử dụng "s" từ dữ liệu trade
+                Long tradeId = rootNode.get("t").asLong();         // Số thứ tự giao dịch
+                BigDecimal price = new BigDecimal(rootNode.get("p").asText()); // Giá giao dịch
+                BigDecimal quantity = new BigDecimal(rootNode.get("q").asText()); // Khối lượng
+                Long tradeTime = rootNode.get("T").asLong();        // Thời gian giao dịch
+                boolean isMaker = rootNode.get("m").asBoolean();    // True nếu maker, false nếu taker
+                BigDecimal totalValue = price.multiply(quantity);   // Tính tổng giá trị
+
+                MarketTrade marketTrade = MarketTrade.builder()
+                        .productId(tradeProductId)
+                        .tradeId(tradeId)
+                        .price(price)
+                        .quantity(quantity)
+                        .tradeTime(tradeTime)
+                        .isMaker(isMaker)
+//                        .isBuyer(isBuyer)
+                        .totalValue(totalValue)
+                        .build();
+
+                eventPublisher.publishEvent(new MarketTradeReceivedEvent(marketTrade));
+            }
         } catch (Exception e) {
             log.error("Error processing depth or kline message for product {}: {}", productId, message, e);
         }
@@ -357,9 +383,11 @@ public class BinanceWebSocketService {
                 productSessions.put(identifier, session);
                 String depthStream = identifier.toLowerCase() + "@depth10";
                 String klineStream = identifier.toLowerCase() + "@kline_1m";
+                String tradeStream = identifier.toLowerCase() + "@trade";
+
 
                 String subscriptionMessage = "{\"method\": \"SUBSCRIBE\", " +
-                        "\"params\": [\"" + depthStream + "\", \"" + klineStream + "\"], " +
+                        "\"params\": [\"" + depthStream + "\", \"" + klineStream + "\", \"" +tradeStream+ "\"], " +
                         "\"id\": 2}";
                 try {
                     session.sendMessage(new TextMessage(subscriptionMessage));
@@ -379,6 +407,8 @@ public class BinanceWebSocketService {
                     handleDepthMessage(payload, identifier);
                 } else if (payload.contains("\"e\":\"kline\"")) {
                     handleDepthMessage(payload, identifier); // Xử lý cả kline
+                } else if (payload.contains("\"e\":\"trade\"")) {
+                    handleDepthMessage(payload, identifier);
                 }
             }
         }
