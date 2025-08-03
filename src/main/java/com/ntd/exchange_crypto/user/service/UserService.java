@@ -82,6 +82,7 @@ package com.ntd.exchange_crypto.user.service;
 //    }
 //}
 
+import com.ntd.exchange_crypto.user.UserDTO;
 import com.ntd.exchange_crypto.user.UserExternalAPI;
 import com.ntd.exchange_crypto.user.UserInternalAPI;
 import com.ntd.exchange_crypto.user.dto.request.UserCreationRequest;
@@ -161,9 +162,20 @@ public class UserService implements UserExternalAPI, UserInternalAPI {
     }
 
     @Override
+    public UserDTO userExistsByEmail(String email) {
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new UserException(UserErrorCode.USER_NOTFOUND);
+        }
+
+        return UserDTO.builder().id(user.getId()).email(user.getEmail()).build();
+    }
+
+    @Override
     public User getUserByEmail(String email) {
         return userRepository.findByEmail(email);
     }
+
 
     @Override
     public void saveUser(User user) {

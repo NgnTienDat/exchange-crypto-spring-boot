@@ -123,7 +123,7 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
-    @PostAuthorize("returnObject.result.email == authentication.name")
+    @PostAuthorize("returnObject.body.result.email == authentication.name")
     public ResponseEntity<APIResponse<UserResponse>> getUserById(@PathVariable String userId) {
         return ResponseEntity.ok(buildResponse(userExternalAPI.getUserById(userId),
                 "User data retrieved successfully", HttpStatus.OK));
