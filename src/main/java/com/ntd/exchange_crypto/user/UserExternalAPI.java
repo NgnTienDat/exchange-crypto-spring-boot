@@ -17,4 +17,7 @@ public interface UserExternalAPI {
     List<UserResponse> getAllUsers();
 
     UserResponse getMyInfo();
+
+    UserDTO userExistsByEmail(String email);
+
 }

@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.text.ParseException;
@@ -58,6 +59,7 @@ public class AuthenticationController {
     }
 
     @PostMapping("/logout")
+    @PreAuthorize("isAuthenticated()")
     public APIResponse<Void> logout(@RequestBody LogoutRequest logoutRequest) throws ParseException, JOSEException {
         this.authenticationService.logout(logoutRequest);
         return APIResponse.<Void>builder()
@@ -69,6 +71,7 @@ public class AuthenticationController {
 
 
     @PostMapping("/refresh")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<APIResponse<AuthenticationResponse>> authenticate(
             @RequestBody RefreshRequest refreshRequest) throws ParseException, JOSEException {
 
@@ -85,6 +88,7 @@ public class AuthenticationController {
 
 
     @PostMapping("/2fa/setup")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<APIResponse<TFAResponse>> enable2fa() {
         APIResponse<TFAResponse> response = APIResponse.<TFAResponse>builder()
                 .success(true)
