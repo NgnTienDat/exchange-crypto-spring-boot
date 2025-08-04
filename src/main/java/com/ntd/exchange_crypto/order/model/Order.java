@@ -11,7 +11,13 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-@Entity(name = "order")
+@Entity
+@Table(name = "orders", indexes = {
+        @Index(name = "idx_orders_user_id", columnList = "user_id"),
+        @Index(name = "idx_orders_product_id", columnList = "product_id"),
+        @Index(name = "idx_orders_status", columnList = "status"),
+        @Index(name = "idx_orders_created_at", columnList = "created_at")
+})
 @Getter
 @Setter
 @AllArgsConstructor
