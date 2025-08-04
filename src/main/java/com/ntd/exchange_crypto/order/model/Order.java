@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import com.ntd.exchange_crypto.order.enums.OrderStatus;
 import com.ntd.exchange_crypto.order.enums.Side;
+import com.ntd.exchange_crypto.order.enums.TimeInForce;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -60,6 +61,10 @@ public class Order {
     // The total amount filled for this order
     @Column(name = "filled_quantity", nullable = false, precision = 19, scale = 8)
     BigDecimal filledQuantity = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "time_in_force", nullable = false, length = 10)
+    TimeInForce timeInForce;
 
     @PrePersist
     protected void onCreate() {
