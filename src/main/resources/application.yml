@@ -16,18 +16,22 @@ spring:
       ddl-auto: update
     show-sql: true
 
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+#      password: ${REDIS_PASSWORD}
+      database: 0
+      timeout: 1000 # in milliseconds
+
 auth:
   signer-key: ${SIGNER_KEY}
   valid-duration: 86400 # in second : 1 day
   refreshable-duration: 259200 # in second
 
 app:
-  coinbase:
-    websocket-url: ${COINBASE_WEBSOCKET_URL}
-
-
   binance:
-    websocket-url: wss://stream.binance.com:9443/ws
+    websocket-url: ${BINANCE_WEBSOCKET_URL}
     ticker-symbols: btcusdt, ethusdt, adausdt, dotusdt, bnbusdt, solusdt
 
   websocket:
