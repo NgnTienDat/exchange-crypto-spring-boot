@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.ntd.exchange_crypto.order.enums.OrderStatus;
+import com.ntd.exchange_crypto.order.enums.OrderType;
 import com.ntd.exchange_crypto.order.enums.Side;
 import com.ntd.exchange_crypto.order.enums.TimeInForce;
 import jakarta.persistence.*;
@@ -12,12 +13,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "orders", indexes = {
-        @Index(name = "idx_orders_user_id", columnList = "user_id"),
-        @Index(name = "idx_orders_product_id", columnList = "product_id"),
-        @Index(name = "idx_orders_status", columnList = "status"),
-        @Index(name = "idx_orders_created_at", columnList = "created_at")
-})
+@Table(name = "orders")
 @Getter
 @Setter
 @AllArgsConstructor
@@ -56,10 +52,17 @@ public class Order {
     @Column(name = "updated_at", nullable = false)
     Instant updatedAt = Instant.now();
 
+    // Bid and Ask
     @Enumerated(EnumType.STRING)
     @Column(name = "side", nullable = false, length = 10)
-    Side type;
+    Side side;
 
+    // The type of the order (e.g., LIMIT, MARKET)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type", nullable = false, length = 20)
+    OrderType orderType;
+
+    // The status of the order (e.g., OPEN, PARTIALLY_FILLED, FILLED, CANCELED)
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     OrderStatus status;

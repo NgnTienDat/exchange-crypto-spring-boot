@@ -108,8 +108,7 @@ public class MarketDataService {
             eventPublisher.publishEvent(new OrderBookUpdatedEvent(response));
         } catch (Exception e) {
             log.error("Error processing order book update: {}", event.orderBookData(), e);
-            // Thêm retry logic nếu cần
-            retryHandleOrderBookReceived(event);
+//            retryHandleOrderBookReceived(event);
         }
     }
 
