@@ -36,14 +36,13 @@ public class Trade {
     @Column(name = "product_id", nullable = false)
     String productId;
 
-    @Column(name = "price", nullable = false, precision = 19, scale = 8)
+    @Column(name = "price", nullable = false, precision = 18, scale = 8)
     BigDecimal price;
 
-    @Column(name = "quantity", nullable = false, precision = 19, scale = 8)
+    @Column(name = "quantity", nullable = false, precision = 18, scale = 8)
     BigDecimal quantity;
 
-    @Column(name = "total_amount", nullable = false, precision = 19, scale = 8)
-    BigDecimal totalAmount;
+
 
 //    @Column(name = "is_buyer_maker", nullable = false)
 //    boolean isBuyerMaker;

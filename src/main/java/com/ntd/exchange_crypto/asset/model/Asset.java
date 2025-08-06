@@ -21,15 +21,16 @@ public class Asset {
     @Column(name = "id", nullable = false, length = 36)
     String id;
 
+    @Column(name = "crypto_id", nullable = false, length = 36)
     String cryptoId;
 
     @Column(name = "user_id", nullable = false, length = 36)
     String userId;
 
-    @Column(name = "balance", nullable = false, precision = 18, scale = 8)
+    @Column(name = "balance", nullable = false, precision = 19, scale = 8)
     BigDecimal balance;
 
-    @Column(name = "locked_balance", nullable = false, precision = 18, scale = 8)
+    @Column(name = "locked_balance", nullable = false, precision = 19, scale = 8)
     BigDecimal lockedBalance;
 
     @Column(name = "last_updated", nullable = false)

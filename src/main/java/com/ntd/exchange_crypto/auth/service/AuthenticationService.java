@@ -22,6 +22,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -217,5 +218,13 @@ public class AuthenticationService implements AuthenticationExternalAPI {
                 .token(token)
                 .isAuthenticated(true)
                 .build();
+    }
+
+    @Override
+    @PostAuthorize("returnObject.true == authentication.name")
+    public boolean isUserLogin(String emailAuthentication) {
+        var context = SecurityContextHolder.getContext();
+        String email = context.getAuthentication().getName();
+        return emailAuthentication != null && emailAuthentication.equals(email);
     }
 }

@@ -16,14 +16,14 @@ import lombok.experimental.FieldDefaults;
 public class Crypto {
 
     @Id
-    @Column(name = "product_id", nullable = false, length = 36)
-    private String productId;
+    @Column(name = "id", nullable = false, length = 36)
+    String id;
 
     @Column(name = "name", nullable = false, length = 50)
-    private String name;
+    String name;
 
     @Column(name = "symbol", nullable = false, length = 10)
-    private String symbol;
+    String symbol;
 
 //    @Column(name = "total_supply", precision = 18, scale = 8)
 //    private BigDecimal totalSupply; // Tổng cung tối đa

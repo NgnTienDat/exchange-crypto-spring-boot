@@ -30,8 +30,11 @@ public class Order {
     @Column(name = "user_id", nullable = false)
     String userId;
 
-    @Column(name = "product_id", nullable = false)
-    String productId;
+    @Column(name = "get_crypto_id", nullable = false)
+    String getCryptoId;
+
+    @Column(name = "give_crypto_id", nullable = false)
+    String giveCryptoId;
 
     @Column(name = "quantity", nullable = false, precision = 19, scale = 8)
     BigDecimal quantity;
@@ -39,12 +42,9 @@ public class Order {
     @Column(name = "price", nullable = false, precision = 19, scale = 8)
     BigDecimal price;
 
-    @Column(name = "total_amount", nullable = false, precision = 19, scale = 8)
-    BigDecimal totalAmount;
-
     // Indicates if the order is a maker order (true) or a taker order (false)
-    @Column(name = "is_buyer_maker", nullable = false)
-    boolean isBuyerMaker;
+//    @Column(name = "is_buyer_maker", nullable = false)
+//    boolean isBuyerMaker;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt = Instant.now();
@@ -59,8 +59,8 @@ public class Order {
 
     // The type of the order (e.g., LIMIT, MARKET)
     @Enumerated(EnumType.STRING)
-    @Column(name = "order_type", nullable = false, length = 20)
-    OrderType orderType;
+    @Column(name = "type", nullable = false, length = 20)
+    OrderType type;
 
     // The status of the order (e.g., OPEN, PARTIALLY_FILLED, FILLED, CANCELED)
     @Enumerated(EnumType.STRING)
