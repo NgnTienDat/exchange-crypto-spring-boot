@@ -72,16 +72,19 @@ public class AssetService implements AssetInternalAPI, AssetExternalAPI {
 
     @Override
     @Transactional
-    public void lockBalance(String cryptoId, BigDecimal amount) {
+    public void lockBalance(String giveCryptoId, BigDecimal amount) {
+
         UserDTO userDTO = userExternalAPI.getUserLogin();
 
-        log.info("Locking balance for user: {}, cryptoId: {}, amount: {}", userDTO.getId(), cryptoId, amount);
+        log.info("Locking balance for user: {}, cryptoId: {}, amount: {}",
+                userDTO.getId(), giveCryptoId, amount);
 
         Asset userAsset = this.assetRepository
-                .findAssetsByUserIdAndCryptoId(userDTO.getId(), cryptoId)
+                .findAssetsByUserIdAndCryptoId(userDTO.getId(), giveCryptoId)
                 .orElseThrow(() -> new AssetException(AssetErrorCode.USER_ASSET_NOTFOUND));
 
-        if (getAvailableBalance(cryptoId).compareTo(amount) < 0)
+
+        if (getAvailableBalance(giveCryptoId).compareTo(amount) < 0)
             throw new AssetException(AssetErrorCode.INSUFFICIENT_BALANCE_TO_LOCK);
 
         userAsset.setLockedBalance(userAsset.getLockedBalance().add(amount));
@@ -97,6 +100,7 @@ public class AssetService implements AssetInternalAPI, AssetExternalAPI {
                 .findAssetsByUserIdAndCryptoId(userDTO.getId(), productId)
                 .orElseThrow(() -> new AssetException(AssetErrorCode.USER_ASSET_NOTFOUND));
 
+        log.info("AMOUNT: {}, LOCKED BALANCE: {}", amount, userAsset.getLockedBalance());
         if (userAsset.getLockedBalance().compareTo(amount) < 0)
             throw new AssetException(AssetErrorCode.LOCKED_BALANCE_INSUFFICIENT);
 

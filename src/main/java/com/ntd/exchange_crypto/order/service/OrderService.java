@@ -17,14 +17,11 @@ import com.ntd.exchange_crypto.order.repository.OrderRepository;
 import com.ntd.exchange_crypto.user.UserDTO;
 import com.ntd.exchange_crypto.user.UserExternalAPI;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,30 +45,9 @@ public class OrderService {
 
     public OrderResponse placeOrder(OrderCreationRequest orderCreationRequest) throws JsonProcessingException {
         log.info("Placing order for request: {}", orderCreationRequest);
-        /*
-         *  My balance USDT: 50000
-         *  My balance BTC: 1
-         *
-         *
-         *  getProductId: BTC
-         *  giveProductId: USDT
-         *  quantity: 0.01
-         *  price: 114300
-         *  side: BUY
-         *  Total Amount: 1143 -> Lock giveProductId: 1143 USDT
-         *
-         *
-         *  getProductId: USDT
-         *  giveProductId: BTC
-         *  quantity: 0.1
-         *  price: 114300
-         *  side: SELL
-         *  Total Amount: 11430 -> Lock giveProductId: 0.9 BTC
-         *
-         *
-         *
-         * */
+
         BigDecimal totalAmount = orderCreationRequest.getPrice().multiply(orderCreationRequest.getQuantity());
+
 
         // Step 1: Get current user from security context
         UserDTO userDTO = userExternalAPI.getUserLogin();
@@ -98,27 +74,30 @@ public class OrderService {
                 .updatedAt(Instant.now())
                 .build();
 
+        String pairId = this.getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
+
+
+
         try {
+            BigDecimal amountToLock = order.getSide().equals(Side.BID) ?
+                    totalAmount : order.getQuantity();
+
             // Step 4: Lock quantity in the user's asset
-            assetExternalAPI.lockBalance(orderCreationRequest.getGiveCryptoId(), totalAmount);
+            assetExternalAPI.lockBalance(orderCreationRequest.getGiveCryptoId(), amountToLock);
 
             // Step 5: Save the order to the database
             order = orderRepository.save(order);
 
             // Step 6: Publish the order to Redis
-            redisTemplate.opsForHash().put("order:" + order.getId(),
-                    "order",
-                    objectMapper.writeValueAsString(order));
+            this.addOrderToOrderBook(order);
 
             // Step 7: send the order to the Redis channel
-            redisTemplate.convertAndSend("order:" + orderCreationRequest, order.getId());
+
+            redisTemplate.convertAndSend("order:" + pairId, order.getId());
 
         } catch (Exception e) {
             assetExternalAPI.unlockBalance(orderCreationRequest.getGiveCryptoId(), totalAmount);
         }
-
-        // Step 8: Return the order response
-
 
         return OrderResponse.builder()
                 .pairId(orderCreationRequest.toString())
@@ -133,5 +112,42 @@ public class OrderService {
                 .build();
 
 
+    }
+
+    private String getPairId(Side side, String giveCryptoId, String getCryptoId) {
+        return side == Side.BID ?
+                getCryptoId + "-" + giveCryptoId :
+                giveCryptoId + "-" + getCryptoId;
+    }
+
+
+    private void addOrderToOrderBook(Order order) throws JsonProcessingException {
+        // HSET order:<uuid> order <order_json>
+        //          key      field    value
+        // ZADD orderbook:<BTC-USDT>:<BUY> <score> order:<uuid>
+        //             key                  score   member
+
+        String pairId = getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
+        String hashKey = "order:" + order.getId();
+        String zsetKey = buildOrderBookKey(pairId, order.getSide());
+
+        redisTemplate.opsForHash().put(hashKey, "order", objectMapper.writeValueAsString(order));
+
+        double score = computeOrderScore(order.getPrice(), order.getCreatedAt(), order.getSide());
+
+        redisTemplate.opsForZSet().add(zsetKey, order.getId(), score);
+
+    }
+
+    private String buildOrderBookKey(String pairId, Side side) {
+        return "orderbook:" + pairId + ":" + side.name().toLowerCase();
+    }
+
+    private double computeOrderScore(BigDecimal price, Instant createdAt, Side side) {
+        // Với side = BID -> ưu tiên price cao hơn -> đảo dấu để ZSet sắp xếp tăng dần
+        // Với side = ASK -> ưu tiên price thấp hơn (Mặc định trong ZSet là tăng dần)
+        double pricePart = side == Side.BID ? -price.doubleValue() : price.doubleValue();
+        double timePart = createdAt.toEpochMilli() / 1e13; // để không ảnh hưởng nhiều đến price
+        return pricePart + timePart;
     }
 }
