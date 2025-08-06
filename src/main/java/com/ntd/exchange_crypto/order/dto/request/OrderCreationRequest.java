@@ -16,16 +16,16 @@ import java.math.BigDecimal;
 @Builder
 public class OrderCreationRequest {
     @NotBlank(message = "NOT_BLANK")
-    String productId;
+    String getCryptoId;
 
     @NotBlank(message = "NOT_BLANK")
-    String userId;
+    String giveCryptoId;
+
+//    @NotBlank(message = "NOT_BLANK")
+//    String userId;
 
     @NotBlank(message = "NOT_BLANK")
     String side;
-
-    @NotBlank(message = "NOT_BLANK")
-    String type;
 
     @NotNull(message = "NOT_NULL")
     BigDecimal price;
@@ -43,4 +43,10 @@ public class OrderCreationRequest {
     @NotBlank(message = "NOT_BLANK")
     String orderType;
 
+
+
+    @Override
+    public String toString() {
+        return getCryptoId + "-" + giveCryptoId;
+    }
 }

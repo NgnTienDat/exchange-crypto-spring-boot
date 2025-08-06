@@ -18,6 +18,8 @@ public interface UserExternalAPI {
 
     UserResponse getMyInfo();
 
-    UserDTO userExistsByEmail(String email);
+    UserDTO getUserLogin();
+
+
 
 }

@@ -11,7 +11,10 @@ import org.springframework.http.HttpStatusCode;
 @NoArgsConstructor
 public enum AssetErrorCode {
 
-    ASSET_NOTFOUND(4000, "Asset not found", HttpStatus.BAD_REQUEST),
+    USER_ASSET_NOTFOUND(4000, "Asset not found", HttpStatus.BAD_REQUEST),
+    INSUFFICIENT_BALANCE(4001, "Insufficient balance", HttpStatus.BAD_REQUEST),
+    INSUFFICIENT_BALANCE_TO_LOCK(4002, "Insufficient balance to lock quantity", HttpStatus.BAD_REQUEST),
+    LOCKED_BALANCE_INSUFFICIENT(4003, "locked balance insufficient to unlock", HttpStatus.BAD_REQUEST),
     ;
 
     private int code;

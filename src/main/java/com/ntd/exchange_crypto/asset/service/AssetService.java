@@ -6,23 +6,22 @@ import com.ntd.exchange_crypto.asset.dto.response.AssetResponse;
 import com.ntd.exchange_crypto.asset.mapper.AssetMapper;
 import com.ntd.exchange_crypto.asset.model.Asset;
 import com.ntd.exchange_crypto.asset.repository.AssetRepository;
-import com.ntd.exchange_crypto.cryptocurrency.CryptoExternalAPI;
 import com.ntd.exchange_crypto.asset.exception.AssetErrorCode;
 import com.ntd.exchange_crypto.asset.exception.AssetException;
-import com.ntd.exchange_crypto.cryptocurrency.model.Crypto;
 import com.ntd.exchange_crypto.user.UserDTO;
 import com.ntd.exchange_crypto.user.UserExternalAPI;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.access.prepost.PostAuthorize;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 
 @Service
@@ -33,34 +32,76 @@ public class AssetService implements AssetInternalAPI, AssetExternalAPI {
 
     AssetRepository assetRepository;
     UserExternalAPI userExternalAPI;
+    AssetMapper assetMapper;
 
 
     /* --------------------------------------- External --------------------------------------- */
 
 
     @Override
-    public BigDecimal getAvailableBalance(String productId) {
+    public BigDecimal getAvailableBalance(String cryptoId) {
+        UserDTO user = userExternalAPI.getUserLogin();
 
+        Asset asset = this.assetRepository
+                .findAssetsByUserIdAndCryptoId(user.getId(), cryptoId)
+                .orElseThrow(() -> new AssetException(AssetErrorCode.USER_ASSET_NOTFOUND));
 
-        var context = SecurityContextHolder.getContext();
-        String email = context.getAuthentication().getName();
-
-        UserDTO user = userExternalAPI.userExistsByEmail(email);
-        Asset asset = this.assetRepository.findAssetsByUserIdAndCryptoId(user.getId(), productId);
-        if (asset == null) {
-            throw new AssetException(AssetErrorCode.ASSET_NOTFOUND);
-        }
         return asset.getBalance().subtract(asset.getLockedBalance());
     }
 
     @Override
-    public Optional<Asset> lockBalance(String userId, String productId, BigDecimal amount) {
-        return Optional.empty();
+    public List<AssetResponse> getMyAsset() {
+        UserDTO user = userExternalAPI.getUserLogin();
+        Set<Asset> assets = this.assetRepository.findAllByUserId(user.getId());
+        if (assets.isEmpty()) {
+            log.warn("No assets found for user: {}", user.getId());
+            return List.of();
+        }
+        return assets.stream()
+                .map(assetMapper::toAssetResponse)
+                .toList();
     }
 
     @Override
-    public Optional<Asset> unlockBalance(String userId, String productId, BigDecimal amount) {
-        return Optional.empty();
+    @Transactional(readOnly = true)
+    public boolean hasSufficientBalance(String cryptoId, BigDecimal amount) {
+        BigDecimal availableBalance = getAvailableBalance(cryptoId);
+        return availableBalance.compareTo(amount) >= 0;
+    }
+
+
+    @Override
+    @Transactional
+    public void lockBalance(String cryptoId, BigDecimal amount) {
+        UserDTO userDTO = userExternalAPI.getUserLogin();
+
+        log.info("Locking balance for user: {}, cryptoId: {}, amount: {}", userDTO.getId(), cryptoId, amount);
+
+        Asset userAsset = this.assetRepository
+                .findAssetsByUserIdAndCryptoId(userDTO.getId(), cryptoId)
+                .orElseThrow(() -> new AssetException(AssetErrorCode.USER_ASSET_NOTFOUND));
+
+        if (getAvailableBalance(cryptoId).compareTo(amount) < 0)
+            throw new AssetException(AssetErrorCode.INSUFFICIENT_BALANCE_TO_LOCK);
+
+        userAsset.setLockedBalance(userAsset.getLockedBalance().add(amount));
+        assetRepository.save(userAsset);
+    }
+
+    @Override
+    @Transactional
+    public void unlockBalance(String productId, BigDecimal amount) {
+        UserDTO userDTO = userExternalAPI.getUserLogin();
+
+        Asset userAsset = this.assetRepository
+                .findAssetsByUserIdAndCryptoId(userDTO.getId(), productId)
+                .orElseThrow(() -> new AssetException(AssetErrorCode.USER_ASSET_NOTFOUND));
+
+        if (userAsset.getLockedBalance().compareTo(amount) < 0)
+            throw new AssetException(AssetErrorCode.LOCKED_BALANCE_INSUFFICIENT);
+
+        userAsset.setLockedBalance(userAsset.getLockedBalance().subtract(amount));
+        assetRepository.saveAndFlush(userAsset);
     }
 
 
@@ -94,6 +135,28 @@ public class AssetService implements AssetInternalAPI, AssetExternalAPI {
 //
 //        return assetMapper.toAssetResponse(asset);
 //    }
+
+    @Override
+    public AssetResponse createNewAsset(String productId, BigDecimal newBalance) {
+
+        UserDTO user = userExternalAPI.getUserLogin();
+
+        Asset asset = this.assetRepository
+                .findAssetsByUserIdAndCryptoId(user.getId(), productId)
+                .orElseGet(() -> {
+                    Asset newAsset = Asset.builder()
+                            .balance(newBalance)
+                            .lockedBalance(BigDecimal.ZERO)
+                            .cryptoId(productId)
+                            .lastUpdated(Instant.now())
+                            .status(Asset.AssetStatus.ACTIVE)
+                            .userId(user.getId())
+                            .build();
+                    return this.assetRepository.save(newAsset);
+                });
+        return assetMapper.toAssetResponse(asset);
+
+    }
 
     @Override
     public Optional<Asset> freezeAsset(String userId, String productId) {

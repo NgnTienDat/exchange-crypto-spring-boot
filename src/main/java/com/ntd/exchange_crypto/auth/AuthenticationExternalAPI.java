@@ -25,4 +25,6 @@ public interface AuthenticationExternalAPI {
     void logout(LogoutRequest logoutRequest) throws ParseException, JOSEException;
 
     AuthenticationResponse verifyCode(VerificationRequest verificationRequest);
+
+    boolean isUserLogin(String email);
 }

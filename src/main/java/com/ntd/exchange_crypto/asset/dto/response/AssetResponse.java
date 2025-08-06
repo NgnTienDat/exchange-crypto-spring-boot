@@ -14,11 +14,11 @@ import java.time.Instant;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Builder
 public class AssetResponse {
-    String id;
+//    String id;
     String cryptoId;
-    String userId;
+//    String userId;
     BigDecimal balance;
     BigDecimal lockedBalance;
     Instant lastUpdated;
-    String assetStatus;
+//    String assetStatus;
 }
