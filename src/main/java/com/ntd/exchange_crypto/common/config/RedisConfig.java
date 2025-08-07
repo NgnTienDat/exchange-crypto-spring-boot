@@ -1,11 +1,15 @@
 package com.ntd.exchange_crypto.common.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ntd.exchange_crypto.trade.service.OrderBookStatsMessageSubscriber;
+import com.ntd.exchange_crypto.trade.service.OrderMessageSubscriber;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
@@ -31,11 +35,42 @@ public class RedisConfig {
         return template;
     }
 
+
+
+
+
     @Bean
-    public RedisMessageListenerContainer redisMessageListenerContainer(RedisConnectionFactory connectionFactory) {
+    public RedisMessageListenerContainer container(
+            RedisConnectionFactory connectionFactory,
+            MessageListenerAdapter orderListenerAdapter,
+            MessageListenerAdapter orderBookStatListenerAdapter) {
+
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
+
+        container.addMessageListener(orderListenerAdapter, new PatternTopic("order:*"));
+        container.addMessageListener(orderBookStatListenerAdapter, new PatternTopic("orderbook-to-stat:*"));
         return container;
+    }
+
+    @Bean
+    public MessageListenerAdapter orderListenerAdapter(OrderMessageSubscriber subscriber) {
+        return new MessageListenerAdapter(subscriber);
+    }
+//    @Bean
+//    public MessageListenerAdapter orderListenerAdapter(OrderMessageSubscriber subscriber,
+//                                                       ObjectMapper objectMapper) {
+//        MessageListenerAdapter adapter = new MessageListenerAdapter(subscriber, "handleMessage");
+//        // Gọi đến method tên "handleMessage"
+//        // Cấu hình serializer để nó tự động chuyển đổi message thành đối tượng Order
+//        adapter.setSerializer(new Jackson2JsonRedisSerializer<>(objectMapper, Object.class));
+//        adapter.afterPropertiesSet();
+//        return adapter;
+//    }
+
+    @Bean
+    public MessageListenerAdapter orderBookStatListenerAdapter(OrderBookStatsMessageSubscriber subscriber) {
+        return new MessageListenerAdapter(subscriber);
     }
 
     @Bean

@@ -11,6 +11,7 @@ import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.*;
@@ -33,6 +34,7 @@ import java.util.stream.Collectors;
 public class BinanceWebSocketService {
 
     private final ApplicationEventPublisher eventPublisher;
+    private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
     private WebSocketSession tickerSession; // Session chung cho ticker
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
@@ -44,10 +46,11 @@ public class BinanceWebSocketService {
     @Value("${app.binance.websocket-url}")
     protected String BINANCE_WEBSOCKET_URL;
 
-    public BinanceWebSocketService(ApplicationEventPublisher eventPublisher,
+    public BinanceWebSocketService(ApplicationEventPublisher eventPublisher, RedisTemplate<String, Object> redisTemplate,
                                    ObjectMapper objectMapper,
                                    @Value("#{'${app.binance.ticker-symbols}'.split(',')}") List<String> tickerSymbols) {
         this.eventPublisher = eventPublisher;
+        this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.tickerSymbols = tickerSymbols;
     }
@@ -119,7 +122,7 @@ public class BinanceWebSocketService {
     public synchronized void subscribeToDepth(String productId) {
         try {
             if (!activeDepthSubscriptions.contains(productId)) {
-                String depthStream = productId.toLowerCase() + "@depth10";
+                String depthStream = productId.toLowerCase() + "@depth20";
                 String klineStream = productId.toLowerCase() + "@kline_1m";
                 String tradeStream = productId.toLowerCase() + "@trade";
                 String wsUrl = BINANCE_WEBSOCKET_URL;
@@ -161,7 +164,7 @@ public class BinanceWebSocketService {
         try {
             WebSocketSession session = productSessions.get(productId);
             if (session != null && session.isOpen()) {
-                String depthStream = productId.toLowerCase() + "@depth10";
+                String depthStream = productId.toLowerCase() + "@depth20";
                 session.sendMessage(new TextMessage(
                         "{\"method\": \"UNSUBSCRIBE\", \"params\": [\"" + depthStream + "\"], \"id\": 3}"
                 ));
@@ -212,7 +215,7 @@ public class BinanceWebSocketService {
         try {
             JsonNode rootNode = objectMapper.readTree(message);
 
-            // Xử lý dữ liệu @depth10
+            // Xử lý dữ liệu @depth20
             if (rootNode.has("lastUpdateId") && rootNode.has("bids") && rootNode.has("asks")) {
                 Long lastUpdateId = rootNode.get("lastUpdateId").asLong();
                 JsonNode bidsNode = rootNode.get("bids");
@@ -260,6 +263,7 @@ public class BinanceWebSocketService {
                         .lastUpdateId(lastUpdateId)
                         .build();
 
+                redisTemplate.convertAndSend("orderbook-to-stat:" + productId, orderBookData);
                 eventPublisher.publishEvent(new OrderBookReceivedEvent(orderBookData));
             }
 
@@ -381,7 +385,7 @@ public class BinanceWebSocketService {
             } else {
                 log.info("Connected to Binance WebSocket for product: {}", identifier);
                 productSessions.put(identifier, session);
-                String depthStream = identifier.toLowerCase() + "@depth10";
+                String depthStream = identifier.toLowerCase() + "@depth20";
                 String klineStream = identifier.toLowerCase() + "@kline_1m";
                 String tradeStream = identifier.toLowerCase() + "@trade";
 

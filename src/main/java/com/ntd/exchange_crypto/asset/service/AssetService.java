@@ -100,7 +100,7 @@ public class AssetService implements AssetInternalAPI, AssetExternalAPI {
                 .findAssetsByUserIdAndCryptoId(userDTO.getId(), productId)
                 .orElseThrow(() -> new AssetException(AssetErrorCode.USER_ASSET_NOTFOUND));
 
-        log.info("AMOUNT: {}, LOCKED BALANCE: {}", amount, userAsset.getLockedBalance());
+        log.info("UNLOCK AMOUNT: {}, LOCKED BALANCE: {}", amount, userAsset.getLockedBalance());
         if (userAsset.getLockedBalance().compareTo(amount) < 0)
             throw new AssetException(AssetErrorCode.LOCKED_BALANCE_INSUFFICIENT);
 

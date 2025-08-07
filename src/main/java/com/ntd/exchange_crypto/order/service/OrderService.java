@@ -4,6 +4,8 @@ package com.ntd.exchange_crypto.order.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ntd.exchange_crypto.asset.AssetExternalAPI;
+import com.ntd.exchange_crypto.order.OrderExternalAPI;
+import com.ntd.exchange_crypto.order.OrderInternalAPI;
 import com.ntd.exchange_crypto.order.dto.request.OrderCreationRequest;
 import com.ntd.exchange_crypto.order.dto.response.OrderResponse;
 import com.ntd.exchange_crypto.order.enums.OrderStatus;
@@ -34,7 +36,7 @@ import java.time.Instant;
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @RequiredArgsConstructor
-public class OrderService {
+public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     RedisTemplate<String, Object> redisTemplate;
     ObjectMapper objectMapper;
     ApplicationEventPublisher applicationEventPublisher;
@@ -88,12 +90,11 @@ public class OrderService {
             // Step 5: Save the order to the database
             order = orderRepository.save(order);
 
-            // Step 6: Publish the order to Redis
+            // Step 6: Publish the order to Redis order book
             this.addOrderToOrderBook(order);
 
             // Step 7: send the order to the Redis channel
-
-            redisTemplate.convertAndSend("order:" + pairId, order.getId());
+            redisTemplate.convertAndSend("order:" + pairId, order);
 
         } catch (Exception e) {
             assetExternalAPI.unlockBalance(orderCreationRequest.getGiveCryptoId(), totalAmount);
@@ -122,9 +123,9 @@ public class OrderService {
 
 
     private void addOrderToOrderBook(Order order) throws JsonProcessingException {
-        // HSET order:<uuid> order <order_json>
+        // HSET order:<uuid> order <order_json>                        Terminal: // HGET key field
         //          key      field    value
-        // ZADD orderbook:<BTC-USDT>:<BUY> <score> order:<uuid>
+        // ZADD orderbook:<BTC-USDT>:<BUY> <score> order:<uuid>        Terminal: // ZRANGE key start stop WITHSCORES
         //             key                  score   member
 
         String pairId = getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
@@ -150,4 +151,27 @@ public class OrderService {
         double timePart = createdAt.toEpochMilli() / 1e13; // để không ảnh hưởng nhiều đến price
         return pricePart + timePart;
     }
+
+
+    /* --------------------------------------- External --------------------------------------- */
+
+
+    @Override
+    public Order getOrderById(String orderId) {
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderException(OrderErrorCode.ORDER_NOT_FOUND));
+    }
+
+    @Override
+    public Order createOrder(Order order) {
+        return null;
+    }
+
+    @Override
+    public Order updateOrder(Order order) {
+        return null;
+    }
+
+    /* --------------------------------------- Internal --------------------------------------- */
+
 }
