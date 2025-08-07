@@ -10,7 +10,6 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @Builder
 public class OrderBookEntry {
-    //    private String userId;
     private BigDecimal priceLevel;
     private BigDecimal quantity;
 }

@@ -132,6 +132,8 @@ public class MarketDataService {
         try {
             MarketTrade marketTrade = event.marketTrade();
 
+
+
             MarketTradeResponse response = marketDataMapper.toMarketTradeResponse(marketTrade);
             eventPublisher.publishEvent(new MarketTradeUpdatedEvent(response));
         } catch (Exception e) {

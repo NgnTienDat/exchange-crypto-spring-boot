@@ -18,8 +18,8 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
+      host: localhost
+      port: 6379
 #      password: ${REDIS_PASSWORD}
       database: 0
       timeout: 1000 # in milliseconds
@@ -31,7 +31,7 @@ auth:
 
 app:
   binance:
-    websocket-url: ${BINANCE_WEBSOCKET_URL}
+    websocket-url: wss://stream.binance.com:9443/ws
     ticker-symbols: btcusdt, ethusdt, adausdt, dotusdt, bnbusdt, solusdt
 
   websocket:

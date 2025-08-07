@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.ntd.exchange_crypto.order.enums.OrderStatus;
 import com.ntd.exchange_crypto.order.enums.OrderType;
 import com.ntd.exchange_crypto.order.enums.Side;
@@ -46,9 +47,11 @@ public class Order {
 //    @Column(name = "is_buyer_maker", nullable = false)
 //    boolean isBuyerMaker;
 
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt = Instant.now();
 
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     @Column(name = "updated_at", nullable = false)
     Instant updatedAt = Instant.now();
 

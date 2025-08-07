@@ -71,8 +71,7 @@ public class AuthenticationController {
 
 
     @PostMapping("/refresh")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<APIResponse<AuthenticationResponse>> authenticate(
+    public ResponseEntity<APIResponse<AuthenticationResponse>> refreshToken(
             @RequestBody RefreshRequest refreshRequest) throws ParseException, JOSEException {
 
         AuthenticationResponse result = authenticationService.refreshToken(refreshRequest);
