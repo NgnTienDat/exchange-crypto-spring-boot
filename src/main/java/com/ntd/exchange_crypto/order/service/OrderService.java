@@ -32,7 +32,6 @@ import java.time.Instant;
 
 
 @Service
-@Transactional
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @RequiredArgsConstructor
@@ -45,7 +44,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     AssetExternalAPI assetExternalAPI;
 
 
-    public OrderResponse placeOrder(OrderCreationRequest orderCreationRequest) throws JsonProcessingException {
+    public OrderResponse placeOrder(OrderCreationRequest orderCreationRequest)  {
         log.info("Placing order for request: {}", orderCreationRequest);
 
         BigDecimal totalAmount = orderCreationRequest.getPrice().multiply(orderCreationRequest.getQuantity());
@@ -97,6 +96,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
             redisTemplate.convertAndSend("order:" + pairId, order);
 
         } catch (Exception e) {
+            log.error("Error placing order: {}", e.getMessage(), e);
             assetExternalAPI.unlockBalance(orderCreationRequest.getGiveCryptoId(), totalAmount);
         }
 
@@ -115,11 +115,13 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
     }
 
-    private String getPairId(Side side, String giveCryptoId, String getCryptoId) {
+    @Override
+    public String getPairId(Side side, String giveCryptoId, String getCryptoId) {
         return side == Side.BID ?
                 getCryptoId + "-" + giveCryptoId :
                 giveCryptoId + "-" + getCryptoId;
     }
+
 
 
     private void addOrderToOrderBook(Order order) throws JsonProcessingException {
@@ -155,6 +157,14 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
     /* --------------------------------------- External --------------------------------------- */
 
+    @Override
+    public void updateOrderStatus(Order orderUpdate, BigDecimal matchQuantity) {
+        Order order = getOrderById(orderUpdate.getId());
+        order.setStatus(orderUpdate.getStatus());
+        order.setFilledQuantity(order.getFilledQuantity().add(matchQuantity));
+        order.setUpdatedAt(Instant.now());
+        orderRepository.save(order);
+    }
 
     @Override
     public Order getOrderById(String orderId) {
