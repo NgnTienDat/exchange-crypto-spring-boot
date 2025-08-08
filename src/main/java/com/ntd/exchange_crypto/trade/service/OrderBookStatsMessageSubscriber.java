@@ -24,6 +24,8 @@ public class OrderBookStatsMessageSubscriber implements MessageListener {
             OrderBookData data = objectMapper.readValue(body, OrderBookData.class);
             String productId = data.getProductId();
 
+
+
             orderBookStatsService.updateStats(productId, data);
 
         } catch (Exception e) {

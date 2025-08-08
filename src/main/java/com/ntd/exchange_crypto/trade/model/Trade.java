@@ -21,11 +21,11 @@ public class Trade {
     @Column(name = "id", nullable = false, length = 36)
     String id;
 
-    @Column(name = "buy_order_id", nullable = false)
-    String buyOrderId;
+    @Column(name = "taker_order_id", nullable = false)
+    String takerOrderId;
 
-    @Column(name = "sell_order_id", nullable = false)
-    String sellOrderId;
+    @Column(name = "maker_order_id", nullable = false)
+    String makerOrderId;
 
 //    @Column(name = "buyer_user_id", nullable = false)
 //    String buyerUserId;
@@ -43,9 +43,8 @@ public class Trade {
     BigDecimal quantity;
 
 
-
-//    @Column(name = "is_buyer_maker", nullable = false)
-//    boolean isBuyerMaker;
+    @Column(name = "is_buyer_maker", nullable = true)
+    boolean isBuyerMaker;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt = Instant.now();

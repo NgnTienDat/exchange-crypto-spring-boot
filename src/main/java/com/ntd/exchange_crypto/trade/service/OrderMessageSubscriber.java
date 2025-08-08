@@ -26,13 +26,19 @@ public class OrderMessageSubscriber implements MessageListener {
         try {
             String body = new String(message.getBody());
             Order order = objectMapper.readValue(body, Order.class);
+
+
+
             matchEngine.processNewOrder(order);
+
             log.info("Received order: {}", order);
         } catch (Exception e) {
             log.error("Error processing order message", e);
         }
     }
 }
+
+
 
 
 
