@@ -15,5 +15,5 @@ public interface OrderExternalAPI {
 
     String getPairId(Side side, String giveCryptoId, String getCryptoId);
 
-    void updateOrderStatus(Order order, BigDecimal matchQuantity);
+    void updateOrderStatus(Order order, BigDecimal matchQuantity, BigDecimal matchPrice);
 }

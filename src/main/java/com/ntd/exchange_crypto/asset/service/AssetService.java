@@ -69,6 +69,10 @@ public class AssetService implements AssetInternalAPI, AssetExternalAPI {
         return availableBalance.compareTo(amount) >= 0;
     }
 
+    /*
+    *
+    *
+    * */
 
     @Override
     @Transactional
@@ -93,11 +97,11 @@ public class AssetService implements AssetInternalAPI, AssetExternalAPI {
 
     @Override
     @Transactional
-    public void unlockBalance(String productId, BigDecimal amount) {
-        UserDTO userDTO = userExternalAPI.getUserLogin();
+    public void unlockBalance(String userId, String giveCryptoId, BigDecimal amount) {
+        log.info("Unlocking balance for user");
 
         Asset userAsset = this.assetRepository
-                .findAssetsByUserIdAndCryptoId(userDTO.getId(), productId)
+                .findAssetsByUserIdAndCryptoId(userId, giveCryptoId)
                 .orElseThrow(() -> new AssetException(AssetErrorCode.USER_ASSET_NOTFOUND));
 
         log.info("UNLOCK AMOUNT: {}, LOCKED BALANCE: {}", amount, userAsset.getLockedBalance());
@@ -106,6 +110,22 @@ public class AssetService implements AssetInternalAPI, AssetExternalAPI {
 
         userAsset.setLockedBalance(userAsset.getLockedBalance().subtract(amount));
         assetRepository.saveAndFlush(userAsset);
+    }
+
+    @Override
+    public void updateAsset(String userId, String cryptoId, BigDecimal amount) {
+
+        Asset userAsset = this.assetRepository
+                .findAssetsByUserIdAndCryptoId(userId, cryptoId)
+                .orElseThrow(() -> new AssetException(AssetErrorCode.USER_ASSET_NOTFOUND));
+
+        log.info("Updating asset for user: {}, cryptoId: {}, amount: {}", userId, cryptoId, amount);
+
+        userAsset.setBalance(userAsset.getBalance().add(amount));
+        userAsset.setLastUpdated(Instant.now());
+        assetRepository.save(userAsset);
+
+
     }
 
 
