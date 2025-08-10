@@ -2,6 +2,7 @@ package com.ntd.exchange_crypto.trade.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ntd.exchange_crypto.market.OrderBookData;
+import com.ntd.exchange_crypto.trade.OrderBookStatsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.connection.Message;
