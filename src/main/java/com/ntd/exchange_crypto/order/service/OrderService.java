@@ -35,6 +35,7 @@ import java.time.Instant;
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @RequiredArgsConstructor
+@Transactional
 public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     RedisTemplate<String, Object> redisTemplate;
     ObjectMapper objectMapper;
@@ -44,7 +45,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     AssetExternalAPI assetExternalAPI;
 
 
-    public OrderResponse placeOrder(OrderCreationRequest orderCreationRequest)  {
+    public OrderResponse placeOrder(OrderCreationRequest orderCreationRequest) {
         log.info("Placing order for request: {}", orderCreationRequest);
 
         BigDecimal totalAmount = orderCreationRequest.getPrice().multiply(orderCreationRequest.getQuantity());
@@ -78,10 +79,9 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         String pairId = this.getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
 
 
-
+        BigDecimal amountToLock = order.getSide().equals(Side.BID) ?
+                totalAmount : order.getQuantity();
         try {
-            BigDecimal amountToLock = order.getSide().equals(Side.BID) ?
-                    totalAmount : order.getQuantity();
 
             // Step 4: Lock quantity in the user's asset
             assetExternalAPI.lockBalance(orderCreationRequest.getGiveCryptoId(), amountToLock);
@@ -97,7 +97,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
         } catch (Exception e) {
             log.error("Error placing order: {}", e.getMessage(), e);
-            assetExternalAPI.unlockBalance(orderCreationRequest.getGiveCryptoId(), totalAmount);
+            assetExternalAPI.unlockBalance(order.getUserId(), order.getGiveCryptoId(), amountToLock);
         }
 
         return OrderResponse.builder()
@@ -121,7 +121,6 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
                 getCryptoId + "-" + giveCryptoId :
                 giveCryptoId + "-" + getCryptoId;
     }
-
 
 
     private void addOrderToOrderBook(Order order) throws JsonProcessingException {
@@ -157,13 +156,81 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
     /* --------------------------------------- External --------------------------------------- */
 
+
     @Override
-    public void updateOrderStatus(Order orderUpdate, BigDecimal matchQuantity) {
+    public void updateOrderStatus(Order orderUpdate, BigDecimal matchQuantity, BigDecimal matchPrice) {
+        BigDecimal amountToUnlock = orderUpdate.getSide().equals(Side.BID)
+                ? matchPrice.multiply(matchQuantity)
+                : orderUpdate.getQuantity();
+
+
         Order order = getOrderById(orderUpdate.getId());
         order.setStatus(orderUpdate.getStatus());
         order.setFilledQuantity(order.getFilledQuantity().add(matchQuantity));
         order.setUpdatedAt(Instant.now());
+
+        // FILLED
+        // c8d: admin                        BID: Maker
+        // BTC: 5, USDT: 1000000            -> BTC: 5.1, USDT: 1000000-120500*0.1 = 987950
+        // BID - BUY (get BTC - give USDT): 0.1 : 120500 -> locked USDT: 0.1 * 120500 = 12050
+
+
+        // 121: user                         ASK: Taker
+        // BTC: 1, USDT: 1000000            -> BTC: 0.9, USDT: 1000000+120500*0.1 = 1012050
+        // ASK - SELL (give BTC - get USDT): 0.1 : 120500 -> locked BTC: 0.1
+
+
+        // PARTIALLY FILLED
+        // c8d: admin
+        // BTC: 5.2, USDT: 987950            -> BTC: 5.3, USDT: 987950-121500*0.1 = 975800 (FILLED)
+        //                                   -> BTC: 5.25, USDT: 987950-121500*0.05 = 981875 (PARTIALLY FILLED)
+        // BID - BUY (get BTC - give USDT): 0.1 : 121500 -> locked USDT: 0.1 * 121500 = 12150
+        // BID - BUY (get BTC - give USDT): 0.1 : 121500 -> locked USDT: 0.05 * 121500 = 6075
+
+
+        // 121: user
+        // BTC: 0.9, USDT: 1012050            -> BTC: 0.85, USDT: 1012050+121500*0.05 = 1018125 (FILLED)
+        // ASK - SELL (give BTC - get USDT): 0.05 : 121500 -> locked BTC: 0.05
+
+
+
+
+        assetExternalAPI.unlockBalance(orderUpdate.getUserId(), orderUpdate.getGiveCryptoId(), amountToUnlock);
+
+        // If it's a BID order, we add the received crypto (getCryptoId)
+        // If it's an ASK order, we subtract the given crypto (giveCryptoId)
+        if (orderUpdate.getSide() == Side.BID) {
+            assetExternalAPI.updateAsset(
+                    orderUpdate.getUserId(),
+                    orderUpdate.getGetCryptoId(),
+                    matchQuantity);    // +0.1
+            assetExternalAPI.updateAsset(
+                    orderUpdate.getUserId(),
+                    orderUpdate.getGiveCryptoId(),
+                    amountToUnlock.negate());  // -12050
+        } else {
+            //   ASK: get USDT - give BTC
+            assetExternalAPI.updateAsset(
+                    orderUpdate.getUserId(),
+                    orderUpdate.getGetCryptoId(),
+                    matchQuantity.multiply(matchPrice));    // +12050
+            assetExternalAPI.updateAsset(
+                    orderUpdate.getUserId(),
+                    orderUpdate.getGiveCryptoId(),
+                    amountToUnlock.negate());  // -0.1
+
+        }
+
         orderRepository.save(order);
+
+        // Nếu FILLED, kiểm tra và unlock bất kỳ dư thừa nào
+        if (order.getStatus() == OrderStatus.FILLED) {
+            BigDecimal initialLockedAmount = order.getPrice().multiply(order.getQuantity()); // Lưu locked amount ban đầu
+            if (order.getSide() == Side.BID && initialLockedAmount.compareTo(amountToUnlock) > 0) {
+                BigDecimal remainingLocked = initialLockedAmount.subtract(amountToUnlock);
+                assetExternalAPI.unlockBalance(orderUpdate.getUserId(), orderUpdate.getGiveCryptoId(), remainingLocked);
+            }
+        }
     }
 
     @Override
@@ -183,5 +250,6 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     }
 
     /* --------------------------------------- Internal --------------------------------------- */
+
 
 }

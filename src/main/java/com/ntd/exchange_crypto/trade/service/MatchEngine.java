@@ -2,9 +2,11 @@ package com.ntd.exchange_crypto.trade.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ntd.exchange_crypto.asset.AssetExternalAPI;
 import com.ntd.exchange_crypto.market.OrderBookData;
 import com.ntd.exchange_crypto.order.OrderExternalAPI;
 import com.ntd.exchange_crypto.order.enums.OrderStatus;
+import com.ntd.exchange_crypto.order.enums.OrderType;
 import com.ntd.exchange_crypto.order.enums.Side;
 import com.ntd.exchange_crypto.order.model.Order;
 import com.ntd.exchange_crypto.trade.model.OrderBookStats;
@@ -31,7 +33,7 @@ public class MatchEngine {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
 
-    public MatchEngine(TradeService tradeService, OrderBookStatsService orderBookStatsService, OrderExternalAPI orderExternalAPI, RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
+    public MatchEngine(TradeService tradeService, OrderBookStatsService orderBookStatsService, OrderExternalAPI orderExternalAPI, AssetExternalAPI assetExternalAPI, AssetExternalAPI assetExternalAPI1, RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
         this.tradeService = tradeService;
         this.orderBookStatsService = orderBookStatsService;
         this.orderExternalAPI = orderExternalAPI;
@@ -75,6 +77,15 @@ public class MatchEngine {
         //    - Tạo giao dịch với user ảo
         // 6. Gửi event tạo giao dịch / lưu vào DB
 
+        /*
+        * ASK bán             BID mua
+        * 99                 101
+        * 100                100
+        * 101                99
+        * */
+
+
+
         System.out.println("🔥 Nhận order mới market: " + order);
 
 
@@ -85,7 +96,7 @@ public class MatchEngine {
         // 2. Lấy stats từ cache (đã cập nhật liên tục bởi BinanceWebSocketService)
         OrderBookStats stats = orderBookStatsService.getStats(productId);
         if (stats == null) {
-            log.warn("No order book stats available for {}", productId);
+            log.warn("No order book (Form Binance) stats available for {}", productId);
             return;
         }
 
@@ -125,7 +136,6 @@ public class MatchEngine {
                 // ✅ 6. Khớp lệnh giữa 2 user
                 match(order, counterOrder);
             } else {
-                // ❗7. Không tìm được order đối ứng hợp lệ => tạo deal với anonymous user
                 matchWithAnonymous(order, bestPrice, order.getQuantity());
             }
         } else {
@@ -162,8 +172,9 @@ public class MatchEngine {
         // takerOrder: new order vừa nhận
         // makerOrder: counter order đã tìm thấy từ Redis
         // Nếu makerOrder có side là BID thì isBuyerMaker = true
+        System.out.println("🔥 Khớp lệnh: Taker Order: " + takerOrder + ", \nMaker Order: " + makerOrder);
 
-
+        BigDecimal matchPrice = makerOrder.getPrice(); // Giá khớp từ maker order
         BigDecimal matchQuantity = takerOrder.getQuantity().min(makerOrder.getQuantity());
         boolean isBuyerMaker = makerOrder.getSide() == Side.BID;
 
@@ -178,6 +189,7 @@ public class MatchEngine {
                 .build();
         // Lưu giao dịch vào DB (hoặc gửi event để lưu sau)?
         tradeService.saveTrade(trade);
+        log.info("🔥 Đã tạo giao dịch: {}", trade);
 
 
         // 2. Cập nhật lại Order của cả hai bên (giảm quantity, status...)
@@ -199,9 +211,13 @@ public class MatchEngine {
             makerOrder.setStatus(OrderStatus.FILLED);
             takerOrder.setStatus(OrderStatus.PARTIALLY_FILLED);
         }
-        orderExternalAPI.updateOrderStatus(takerOrder, matchQuantity);
-        orderExternalAPI.updateOrderStatus(makerOrder, matchQuantity);
-        //
+        log.info("🔥 Cập nhật trạng thái order");
+        if (takerOrder.getType() == OrderType.MARKET) {
+            takerOrder.setPrice(matchPrice); // Cập nhật giá khớp
+        }
+        orderExternalAPI.updateOrderStatus(takerOrder, matchQuantity, matchPrice);
+        orderExternalAPI.updateOrderStatus(makerOrder, matchQuantity, matchPrice);
+
 
         // 3. Cập nhật lại OrderBook Redis nếu cần
         //   - Nếu order đã khớp hết quantity => xóa khỏi OrderBook (Hash và ZSet)
@@ -218,6 +234,7 @@ public class MatchEngine {
 
     // Hàm khớp với anonymous user
     private void matchWithAnonymous(Order order, BigDecimal matchPrice, BigDecimal matchQuantity) {
+        log.info("🔥 Khớp lệnh với anonymous user: Order: {}, Price: {}, Quantity: {}", order, matchPrice, matchQuantity);
         // 1. Tạo Transaction với user ảo
         // 2. Đánh dấu order đã khớp
         // 3. Gửi event khớp lệnh
@@ -258,7 +275,10 @@ public class MatchEngine {
 
             redisTemplate.delete(hashKey);
             redisTemplate.opsForZSet().remove(zsetKey, order.getId());
-        } else {
+        } else if (order.getStatus() == OrderStatus.PARTIALLY_FILLED) {
+
+        }
+        else {
             redisTemplate.opsForHash().put(hashKey, "order", objectMapper.writeValueAsString(order));
         }
 
