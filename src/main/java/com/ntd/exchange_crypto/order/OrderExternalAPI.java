@@ -1,5 +1,6 @@
 package com.ntd.exchange_crypto.order;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.ntd.exchange_crypto.order.enums.Side;
 import com.ntd.exchange_crypto.order.model.Order;
 
@@ -16,4 +17,8 @@ public interface OrderExternalAPI {
     String getPairId(Side side, String giveCryptoId, String getCryptoId);
 
     void updateOrderStatus(Order order, BigDecimal matchQuantity, BigDecimal matchPrice);
+
+    void updateOrderInOrderBookRedis(Order order) throws JsonProcessingException;
+
+    BigDecimal getBestPriceForMarket(Order order, String pairId);
 }

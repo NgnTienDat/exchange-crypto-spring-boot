@@ -9,16 +9,13 @@ import com.ntd.exchange_crypto.order.enums.OrderStatus;
 import com.ntd.exchange_crypto.order.enums.OrderType;
 import com.ntd.exchange_crypto.order.enums.Side;
 import com.ntd.exchange_crypto.order.model.Order;
+import com.ntd.exchange_crypto.trade.OrderBookStatsService;
 import com.ntd.exchange_crypto.trade.model.OrderBookStats;
 import com.ntd.exchange_crypto.trade.model.Trade;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -166,15 +163,14 @@ public class MatchEngine {
         //    => xét và tạo giao dịch với anonymous user nếu phù hợp
     }
 
-    // Hàm khớp lệnh (thực hiện giao dịch)
-//    private void match(Order takerOrder, Order makerOrder, BigDecimal matchPrice, BigDecimal matchQuantity) {
+
     private void match(Order takerOrder, Order makerOrder) {
         // takerOrder: new order vừa nhận
         // makerOrder: counter order đã tìm thấy từ Redis
         // Nếu makerOrder có side là BID thì isBuyerMaker = true
         System.out.println("🔥 Khớp lệnh: Taker Order: " + takerOrder + ", \nMaker Order: " + makerOrder);
 
-        BigDecimal matchPrice = makerOrder.getPrice(); // Giá khớp từ maker order
+        BigDecimal matchPrice = makerOrder.getPrice();
         BigDecimal matchQuantity = takerOrder.getQuantity().min(makerOrder.getQuantity());
         boolean isBuyerMaker = makerOrder.getSide() == Side.BID;
 
@@ -182,9 +178,9 @@ public class MatchEngine {
         Trade trade = Trade.builder()
                 .takerOrderId(takerOrder.getId())
                 .makerOrderId(makerOrder.getId())
-                .productId(takerOrder.getGiveCryptoId() + "-" + takerOrder.getGetCryptoId())
-                .price(makerOrder.getPrice()) // Giá khớp
-                .quantity(matchQuantity) // Số lượng khớp
+                .productId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
+                .price(makerOrder.getPrice())
+                .quantity(matchQuantity)
                 .isBuyerMaker(isBuyerMaker)
                 .build();
         // Lưu giao dịch vào DB (hoặc gửi event để lưu sau)?
@@ -219,25 +215,36 @@ public class MatchEngine {
         orderExternalAPI.updateOrderStatus(makerOrder, matchQuantity, matchPrice);
 
 
-        // 3. Cập nhật lại OrderBook Redis nếu cần
-        //   - Nếu order đã khớp hết quantity => xóa khỏi OrderBook (Hash và ZSet)
-        //   - Nếu chỉ khớp một phần thì cập nhật lại quantity trong Redis Hash
-        try {
-            updateOrderInOrderBookRedis(takerOrder);
-            updateOrderInOrderBookRedis(makerOrder);
-        } catch (JsonProcessingException e) {
-            log.error("Error updating order in Redis: {}", e.getMessage());
-        }
 
         // 4. Gửi event để các module khác nhận biết
     }
 
     // Hàm khớp với anonymous user
-    private void matchWithAnonymous(Order order, BigDecimal matchPrice, BigDecimal matchQuantity) {
-        log.info("🔥 Khớp lệnh với anonymous user: Order: {}, Price: {}, Quantity: {}", order, matchPrice, matchQuantity);
+    private void matchWithAnonymous(Order takerOrder, BigDecimal matchPrice, BigDecimal matchQuantity) {
+        log.info("🔥 Khớp lệnh với anonymous user: Order: {}, Price: {}, Quantity: {}", takerOrder, matchPrice, matchQuantity);
         // 1. Tạo Transaction với user ảo
         // 2. Đánh dấu order đã khớp
         // 3. Gửi event khớp lệnh
+
+
+        boolean isBuyerMaker = takerOrder.getSide() == Side.BID;
+
+        String ANONYMOUS_ORDER_ID = "anonymous-order";
+        Trade trade = Trade.builder()
+                .takerOrderId(takerOrder.getId())
+                .makerOrderId(ANONYMOUS_ORDER_ID)
+                .productId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
+                .price(matchPrice)
+                .quantity(matchQuantity)
+                .isBuyerMaker(isBuyerMaker)
+                .build();
+
+        tradeService.saveTrade(trade);
+        log.info("🔥 Đã tạo giao dịch với anonymous user: {}", trade);
+        // Giao dịch với anonymous user luôn là FILLED
+        takerOrder.setStatus(OrderStatus.FILLED);
+        orderExternalAPI.updateOrderStatus(takerOrder, matchQuantity, matchPrice);
+
     }
 
     // Hàm delay khớp với anonymous sau 5-30s
@@ -255,9 +262,7 @@ public class MatchEngine {
 
 
     /*--------------- Hàm tiện ích -------------------------------------------------------------------------------*/
-    public void test() {
-        System.out.println("🔥 MatchEngine is running");
-    }
+
 
     public String getPairIdFromOrderBookData(Side side, String giveCryptoId, String getCryptoId) {
         return side == Side.BID ?
@@ -265,22 +270,6 @@ public class MatchEngine {
                 giveCryptoId + getCryptoId;
     }
 
-    void updateOrderInOrderBookRedis(Order order) throws JsonProcessingException {
-        String hashKey = "order:" + order.getId();
 
-        if (order.getStatus() == OrderStatus.FILLED) {
-            String zsetKey = "orderbook:" +
-                    orderExternalAPI.getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId()) +
-                    ":" + order.getSide().name().toLowerCase();
 
-            redisTemplate.delete(hashKey);
-            redisTemplate.opsForZSet().remove(zsetKey, order.getId());
-        } else if (order.getStatus() == OrderStatus.PARTIALLY_FILLED) {
-
-        }
-        else {
-            redisTemplate.opsForHash().put(hashKey, "order", objectMapper.writeValueAsString(order));
-        }
-
-    }
 }

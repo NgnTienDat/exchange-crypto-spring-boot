@@ -1,4 +1,4 @@
-package com.ntd.exchange_crypto.trade.service;
+package com.ntd.exchange_crypto.trade;
 
 import com.ntd.exchange_crypto.market.OrderBookData;
 import com.ntd.exchange_crypto.market.OrderBookEntry;

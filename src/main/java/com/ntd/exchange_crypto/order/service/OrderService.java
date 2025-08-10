@@ -16,12 +16,15 @@ import com.ntd.exchange_crypto.order.exception.OrderErrorCode;
 import com.ntd.exchange_crypto.order.exception.OrderException;
 import com.ntd.exchange_crypto.order.model.Order;
 import com.ntd.exchange_crypto.order.repository.OrderRepository;
+import com.ntd.exchange_crypto.trade.OrderBookStatsService;
+import com.ntd.exchange_crypto.trade.model.OrderBookStats;
 import com.ntd.exchange_crypto.user.UserDTO;
 import com.ntd.exchange_crypto.user.UserExternalAPI;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -43,12 +46,13 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     UserExternalAPI userExternalAPI;
     OrderRepository orderRepository;
     AssetExternalAPI assetExternalAPI;
+    OrderBookStatsService orderBookStatsService;
 
 
     public OrderResponse placeOrder(OrderCreationRequest orderCreationRequest) {
         log.info("Placing order for request: {}", orderCreationRequest);
 
-        BigDecimal totalAmount = orderCreationRequest.getPrice().multiply(orderCreationRequest.getQuantity());
+
 
 
         // Step 1: Get current user from security context
@@ -76,11 +80,15 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
                 .updatedAt(Instant.now())
                 .build();
 
-        String pairId = this.getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
+        String pairId = this.getPairIdFromOrderBookData(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
+
+        BigDecimal bestPrice = getBestPriceForMarket(order, pairId);
+
+        System.out.println("🔥 PlaceOrder() Best price for " + pairId + ": " + bestPrice);
 
 
         BigDecimal amountToLock = order.getSide().equals(Side.BID) ?
-                totalAmount : order.getQuantity();
+                bestPrice.multiply(order.getQuantity()) : order.getQuantity();
         try {
 
             // Step 4: Lock quantity in the user's asset
@@ -222,6 +230,8 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         }
 
         orderRepository.save(order);
+        log.info("Order updated: {}", order);
+
 
         // Nếu FILLED, kiểm tra và unlock bất kỳ dư thừa nào
         if (order.getStatus() == OrderStatus.FILLED) {
@@ -231,7 +241,43 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
                 assetExternalAPI.unlockBalance(orderUpdate.getUserId(), orderUpdate.getGiveCryptoId(), remainingLocked);
             }
         }
+        this.updateOrderInOrderBookRedis(order);
     }
+
+    @Override
+    public void updateOrderInOrderBookRedis(Order order) {
+        String hashKey = "order:" + order.getId();
+        String zsetKey = "orderbook:" +
+                getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId()) +
+                ":" + order.getSide().name().toLowerCase();
+
+        if (order.getStatus() == OrderStatus.FILLED
+                || order.getStatus() == OrderStatus.CANCELED
+                || order.getStatus() == OrderStatus.EXPIRED) {
+
+            // Xóa khỏi Redis
+            redisTemplate.delete(hashKey);
+            redisTemplate.opsForZSet().remove(zsetKey, order.getId());
+
+        } else if (order.getStatus() == OrderStatus.PARTIALLY_FILLED) {
+            BigDecimal remainingQuantity = order.getQuantity().subtract(order.getFilledQuantity());
+
+            Order redisOrder = new Order();
+            try {
+                BeanUtils.copyProperties(order, redisOrder);
+            } catch (Exception e) {
+                throw new RuntimeException("Copy order failed", e);
+            }
+            redisOrder.setQuantity(remainingQuantity);
+
+            try {
+                redisTemplate.opsForHash().put(hashKey, "order", objectMapper.writeValueAsString(redisOrder));
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
 
     @Override
     public Order getOrderById(String orderId) {
@@ -251,5 +297,22 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
     /* --------------------------------------- Internal --------------------------------------- */
 
+    private String getPairIdFromOrderBookData(Side side, String giveCryptoId, String getCryptoId) {
+        return side == Side.BID ?
+                getCryptoId + giveCryptoId :
+                giveCryptoId + getCryptoId;
+    }
+
+    @Override
+    public BigDecimal getBestPriceForMarket(Order order, String pairId) {
+        Side side = order.getSide();
+        OrderBookStats stats = orderBookStatsService.getStats(pairId);
+        if (stats == null) {
+            log.warn("No order book (Form Binance) stats available for {}", pairId);
+            return null;
+        }
+
+        return (side == Side.BID) ? stats.getMinAskPrice() : stats.getMaxBidPrice();
+    }
 
 }
