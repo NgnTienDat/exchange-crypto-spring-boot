@@ -19,7 +19,12 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
@@ -29,6 +34,7 @@ public class MatchEngine {
     private final OrderExternalAPI orderExternalAPI;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
     public MatchEngine(TradeService tradeService, OrderBookStatsService orderBookStatsService, OrderExternalAPI orderExternalAPI, AssetExternalAPI assetExternalAPI, AssetExternalAPI assetExternalAPI1, RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
         this.tradeService = tradeService;
@@ -39,7 +45,7 @@ public class MatchEngine {
     }
 
 
-    // Hàm lắng nghe order mới từ Redis pub/sub
+    // lắng nghe order mới từ Redis pub/sub
     public void processNewOrder(Order order) throws JsonProcessingException {
         if (order == null || order.getId() == null) {
             log.error("Received null or invalid order");
@@ -144,15 +150,84 @@ public class MatchEngine {
         // 9. Gửi event lưu giao dịch vào DB hoặc xử lý hậu khớp
     }
 
+
     // Xử lý lệnh Limit
-    private void handleLimitOrder(Order order) {
+    private void handleLimitOrder(Order order) throws JsonProcessingException {
         // 1. Xác định chiều lệnh (BID hoặc ASK)
-        // 2. Kiểm tra có order đối ứng cùng giá trong Redis OrderBook
+        // 2. Lấy minAsk & maxAsk hoặc minBid & maxBid từ cache orderBookStatsService
+        // 3. Kiểm tra có order đối ứng cùng giá trong Redis OrderBook
         //    - Nếu có: tạo giao dịch thực (khớp toàn phần / một phần)
         //    - Nếu không:
         //        + Nếu giá nằm trong min-max đối ứng => delay random 5-30s rồi khớp với anonymous user
         //        + Nếu giá nằm ngoài min-max => đặt trạng thái PENDING
-        // 3. Gửi event tạo giao dịch hoặc cập nhật trạng thái lệnh
+        // 4. Gửi event tạo giao dịch hoặc cập nhật trạng thái lệnh
+
+
+        System.out.println("🔥 Nhận order mới LIMIT: " + order);
+
+
+        // 1. Xác định chiều lệnh (BID hoặc ASK)
+        Side side = order.getSide();
+        String productId = this.getPairIdFromOrderBookData(side, order.getGiveCryptoId(), order.getGetCryptoId());
+
+        // 2. Lấy stats từ cache (đã cập nhật liên tục bởi BinanceWebSocketService)
+        OrderBookStats stats = orderBookStatsService.getStats(productId);
+        if (stats == null) {
+            log.warn("No order book (Form Binance) stats available for {}", productId);
+            return;
+        }
+
+        BigDecimal minPrice, maxPrice;
+        if (side == Side.BID) {
+            minPrice = stats.getMinAskPrice();
+            maxPrice = stats.getMaxAskPrice();
+        } else {
+            minPrice = stats.getMinBidPrice();
+            maxPrice = stats.getMaxBidPrice();
+        }
+
+        System.out.println("🔥 Best price for " + productId + ": " + minPrice + " - " + maxPrice);
+
+        Order matchingOrder = null;
+        try {
+            matchingOrder = findMatchingOrderByPrice(order);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+        if (matchingOrder != null) {
+            System.out.println("🔥 Tìm thấy order đối ứng cùng giá: " + matchingOrder);
+//            match(order, matchingOrder);
+        } else {
+            System.out.println("🔥 Không tìm thấy order đối ứng trong Redis");
+            // Nếu giá nằm trong khoảng min-max
+            if( order.getPrice().compareTo(minPrice) >= 0 && order.getPrice().compareTo(maxPrice) <= 0) {
+                // Khớp với anonymous user sau 5-30s
+                scheduleAnonymousMatch(order, Duration.ofSeconds(ThreadLocalRandom.current().nextInt(5, 16)));
+
+            } else {
+                // Đặt trạng thái PENDING
+                log.info("🔥 Order {} nằm ngoài khoảng giá min-max, đặt trạng thái PENDING", order.getId());
+                order.setStatus(OrderStatus.PENDING);
+                orderExternalAPI.updateOrder(order);
+                orderExternalAPI.updateOrderInOrderBookRedis(order);
+                log.info("🔥 Order {} đã được đặt trạng thái PENDING", order.getId());
+            }
+
+
+
+        }
+
+
+        // test các trường hợp
+        // TH1: Khớp với order đối ứng cùng giá
+        // TH2: Không có order đối ứng cùng giá, nhưng giá nằm trong khoảng min-max => khớp với anonymous user
+        // TH3: Không có order đối ứng cùng giá, và giá nằm ngoài khoảng min-max => đặt trạng thái PENDING
+
+
+
+
+
+        // 9. Gửi event lưu giao dịch vào DB hoặc xử lý hậu khớp;
     }
 
     // Cập nhật dữ liệu OrderBook từ Binance (OrderBookData)
@@ -251,6 +326,27 @@ public class MatchEngine {
     private void scheduleAnonymousMatch(Order order, Duration delay) {
         // 1. Sử dụng ScheduledExecutorService hoặc TaskScheduler để delay
         // 2. Sau delay, kiểm tra lại khoảng giá và khớp nếu hợp lệ
+        scheduler.schedule(() -> {
+            try {
+                System.out.println("⏳ Khớp anonymous cho order " + order.getId() +
+                        " sau " + delay.toSeconds() + " giây");
+
+                // Kiểm tra lại giá trước khi khớp (tránh khớp sai khi thị trường đã thay đổi)
+                Order matchingOrder = findMatchingOrderByPrice(order);
+                if (matchingOrder != null) {
+                    System.out.println("🔥 Tìm thấy order đối ứng trong lúc delay: " + matchingOrder);
+//                    match(order, matchingOrder);
+                } else {
+                    // Nếu vẫn không có order thật => khớp với anonymous user
+                    matchWithAnonymous(order, order.getPrice(), order.getQuantity());
+                }
+
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }, delay.toMillis(), TimeUnit.MILLISECONDS);
+
     }
 
     // Hàm kiểm tra order limit PENDING có nên khớp với anonymous không
@@ -269,6 +365,45 @@ public class MatchEngine {
                 getCryptoId + giveCryptoId :
                 giveCryptoId + getCryptoId;
     }
+
+    private Order findMatchingOrderByPrice(Order order) throws JsonProcessingException {
+        // Determining the counter side based on the order side
+        Side counterSide = (order.getSide() == Side.BID) ? Side.ASK : Side.BID;
+        String pairId = orderExternalAPI.getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
+        String redisZSetKey = "orderbook:" + pairId + ":" + counterSide.name().toLowerCase();
+
+        // Calculate the price part based on the order side
+        double pricePart = (counterSide == Side.BID)
+                ? -order.getPrice().doubleValue()
+                : order.getPrice().doubleValue();
+
+        // Determine the score range for the search
+        // Using a small epsilon to allow for slight variations in price matching
+        double epsilon = 0.5;
+        double scoreMin = pricePart - epsilon;
+        double scoreMax = pricePart + epsilon;
+
+        System.out.println("🔥 Tìm kiếm order đối ứng trong Redis ZSet: " + redisZSetKey +
+                ", Score Min: " + scoreMin + ", Score Max: " + scoreMax);
+
+        // Fetching the matching order from Redis ZSet
+        Set<Object> orderRedis = redisTemplate.opsForZSet()
+                .rangeByScore(redisZSetKey, scoreMin, scoreMax, 0, 1);
+
+        if (orderRedis != null && !orderRedis.isEmpty()) {
+            String counterOrderKey = (String) orderRedis.iterator().next();
+            System.out.println("🔥 Found counter order key: " + counterOrderKey);
+
+            // Fetching the order details from Redis Hash
+            String orderJson = (String) redisTemplate.opsForHash().get("order:" + counterOrderKey, "order");
+            if (orderJson == null) return null;
+
+            return objectMapper.readValue(orderJson, Order.class);
+
+        }
+        return null;
+    }
+
 
 
 

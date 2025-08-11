@@ -14,7 +14,7 @@ import static lombok.AccessLevel.PRIVATE;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class OrderBookStats {
     BigDecimal minAskPrice;
-    BigDecimal maxBidPrice;
     BigDecimal maxAskPrice;
     BigDecimal minBidPrice;
+    BigDecimal maxBidPrice;
 }

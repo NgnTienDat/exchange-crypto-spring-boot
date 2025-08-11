@@ -29,6 +29,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationAdapter;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -53,8 +55,6 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         log.info("Placing order for request: {}", orderCreationRequest);
 
 
-
-
         // Step 1: Get current user from security context
         UserDTO userDTO = userExternalAPI.getUserLogin();
 
@@ -73,7 +73,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
                 .price(orderCreationRequest.getPrice())
                 .side(Side.valueOf(orderCreationRequest.getSide().toUpperCase()))
                 .type(OrderType.valueOf(orderCreationRequest.getOrderType().toUpperCase()))
-                .status(OrderStatus.OPEN)
+                .status(OrderStatus.NEW)
                 .timeInForce(TimeInForce.valueOf(orderCreationRequest.getTimeInForce().toUpperCase()))
                 .filledQuantity(BigDecimal.ZERO)
                 .createdAt(Instant.now())
@@ -97,11 +97,23 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
             // Step 5: Save the order to the database
             order = orderRepository.save(order);
 
-            // Step 6: Publish the order to Redis order book
-            this.addOrderToOrderBook(order);
 
-            // Step 7: send the order to the Redis channel
-            redisTemplate.convertAndSend("order:" + pairId, order);
+            Order finalOrder = order;
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
+                @Override
+                public void afterCommit() {
+                    // Step 6: Publish the order to Redis order book
+                    try {
+                        addOrderToOrderBook(finalOrder);
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    // Step 7: send the order to the Redis channel
+                    redisTemplate.convertAndSend("order:" + pairId, finalOrder);
+                }
+            });
+
 
         } catch (Exception e) {
             log.error("Error placing order: {}", e.getMessage(), e);
@@ -157,7 +169,8 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         // Với side = BID -> ưu tiên price cao hơn -> đảo dấu để ZSet sắp xếp tăng dần
         // Với side = ASK -> ưu tiên price thấp hơn (Mặc định trong ZSet là tăng dần)
         double pricePart = side == Side.BID ? -price.doubleValue() : price.doubleValue();
-        double timePart = createdAt.toEpochMilli() / 1e13; // để không ảnh hưởng nhiều đến price
+        double timePart = createdAt.toEpochMilli() / 1e13;
+        System.out.println("TIME-PART: " + timePart);// để không ảnh hưởng nhiều đến price
         return pricePart + timePart;
     }
 
@@ -167,6 +180,8 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
     @Override
     public void updateOrderStatus(Order orderUpdate, BigDecimal matchQuantity, BigDecimal matchPrice) {
+
+
         BigDecimal amountToUnlock = orderUpdate.getSide().equals(Side.BID)
                 ? matchPrice.multiply(matchQuantity)
                 : orderUpdate.getQuantity();
@@ -200,13 +215,9 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         // BTC: 0.9, USDT: 1012050            -> BTC: 0.85, USDT: 1012050+121500*0.05 = 1018125 (FILLED)
         // ASK - SELL (give BTC - get USDT): 0.05 : 121500 -> locked BTC: 0.05
 
-
-
-
         assetExternalAPI.unlockBalance(orderUpdate.getUserId(), orderUpdate.getGiveCryptoId(), amountToUnlock);
 
-        // If it's a BID order, we add the received crypto (getCryptoId)
-        // If it's an ASK order, we subtract the given crypto (giveCryptoId)
+
         if (orderUpdate.getSide() == Side.BID) {
             assetExternalAPI.updateAsset(
                     orderUpdate.getUserId(),
@@ -275,7 +286,15 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
+        } else {
+            // Cập nhật lại thông tin order trong Redis
+            try {
+                redisTemplate.opsForHash().put(hashKey, "order", objectMapper.writeValueAsString(order));
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
         }
+
     }
 
 
@@ -291,8 +310,15 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     }
 
     @Override
-    public Order updateOrder(Order order) {
-        return null;
+    public Order updateOrder(Order orderUpdate) {
+        Order order = this.orderRepository.findById(orderUpdate.getId())
+                .orElseThrow(() -> new OrderException(OrderErrorCode.ORDER_NOT_FOUND));
+        order.setStatus(orderUpdate.getStatus());
+        order.setUpdatedAt(Instant.now());
+        orderRepository.saveAndFlush(order);
+        this.updateOrderInOrderBookRedis(order);
+        log.info("Order {} updated to status {}", order.getId(), order.getStatus());
+        return orderRepository.save(order);
     }
 
     /* --------------------------------------- Internal --------------------------------------- */
