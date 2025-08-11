@@ -28,10 +28,9 @@ public class OrderBookStatsService {
         BigDecimal minBid = bids.getLast().getPriceLevel(); // bid reverse sort
         BigDecimal maxBid = bids.getFirst().getPriceLevel();
 
-        BigDecimal rangeAsk = maxAsk.subtract(minAsk);
-        BigDecimal rangeBid = maxBid.subtract(minBid);
 
-        OrderBookStats stats = new OrderBookStats(minAsk, maxBid, rangeAsk, rangeBid);
+
+        OrderBookStats stats = new OrderBookStats(minAsk, maxAsk, minBid, maxBid);
         statsCache.put(productId, stats);
 //        System.out.printf("------------------------\nUpdated stats for %s\n: " +
 //                        "Min Ask: %s\n, Max Ask: %s\n, Min Bid: %s\n, Max Bid: %s%n\n",

@@ -1,7 +1,7 @@
 package com.ntd.exchange_crypto.order.enums;
 
 public enum OrderStatus {
-    OPEN,
+    NEW,
     PENDING,
     PARTIALLY_FILLED,
     FILLED,

@@ -37,8 +37,7 @@ public class OrderCreationRequest {
     @Size(max = 10, message = "SIZE_MAX_10")
     String timeInForce;
 
-    @NotBlank(message = "NOT_BLANK")
-    String orderStatus;
+
 
     @NotBlank(message = "NOT_BLANK")
     String orderType;
