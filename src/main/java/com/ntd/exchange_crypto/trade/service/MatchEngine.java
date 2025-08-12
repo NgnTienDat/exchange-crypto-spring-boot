@@ -163,7 +163,7 @@ public class MatchEngine {
         // 4. Gửi event tạo giao dịch hoặc cập nhật trạng thái lệnh
 
 
-        System.out.println("🔥 Nhận order mới LIMIT: " + order);
+        log.info("🔥 Nhận order mới LIMIT: {}", order);
 
 
         // 1. Xác định chiều lệnh (BID hoặc ASK)
@@ -178,38 +178,38 @@ public class MatchEngine {
         }
 
         BigDecimal minPrice, maxPrice;
+        BigDecimal extendRange = BigDecimal.valueOf(500); // Khoảng mở rộng để tránh khớp sai
         if (side == Side.BID) {
-            minPrice = stats.getMinAskPrice();
-            maxPrice = stats.getMaxAskPrice();
+            minPrice = stats.getMinAskPrice().subtract(extendRange);
+            maxPrice = stats.getMaxAskPrice().add(extendRange);
         } else {
-            minPrice = stats.getMinBidPrice();
-            maxPrice = stats.getMaxBidPrice();
+            minPrice = stats.getMinBidPrice().subtract(extendRange);
+            maxPrice = stats.getMaxBidPrice().add(extendRange);
         }
 
-        System.out.println("🔥 Best price for " + productId + ": " + minPrice + " - " + maxPrice);
+        log.info("🔥 Best price for {}: {} - {}", productId, minPrice, maxPrice);
 
         Order matchingOrder = null;
-        try {
-            matchingOrder = findMatchingOrderByPrice(order);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
+        matchingOrder = findMatchingOrderByPrice(order);
+
         if (matchingOrder != null) {
-            System.out.println("🔥 Tìm thấy order đối ứng cùng giá: " + matchingOrder);
-//            match(order, matchingOrder);
+            log.info("🔥 Tìm thấy order đối ứng cùng giá: {}", matchingOrder);
+            match(order, matchingOrder);
         } else {
-            System.out.println("🔥 Không tìm thấy order đối ứng trong Redis");
+            log.info("🔥 Không tìm thấy order đối ứng trong Redis");
             // Nếu giá nằm trong khoảng min-max
             if( order.getPrice().compareTo(minPrice) >= 0 && order.getPrice().compareTo(maxPrice) <= 0) {
                 // Khớp với anonymous user sau 5-30s
                 scheduleAnonymousMatch(order, Duration.ofSeconds(ThreadLocalRandom.current().nextInt(5, 16)));
 
             } else {
-                // Đặt trạng thái PENDING
+                // Set PENDING
                 log.info("🔥 Order {} nằm ngoài khoảng giá min-max, đặt trạng thái PENDING", order.getId());
                 order.setStatus(OrderStatus.PENDING);
-                orderExternalAPI.updateOrder(order);
-                orderExternalAPI.updateOrderInOrderBookRedis(order);
+
+//                orderExternalAPI.updateOrder(order);
+//                orderExternalAPI.updateOrderInOrderBookRedis(order);
+                orderExternalAPI.updateOrderStatus(order, BigDecimal.ZERO, BigDecimal.ZERO);
                 log.info("🔥 Order {} đã được đặt trạng thái PENDING", order.getId());
             }
 
@@ -297,6 +297,7 @@ public class MatchEngine {
     // Hàm khớp với anonymous user
     private void matchWithAnonymous(Order takerOrder, BigDecimal matchPrice, BigDecimal matchQuantity) {
         log.info("🔥 Khớp lệnh với anonymous user: Order: {}, Price: {}, Quantity: {}", takerOrder, matchPrice, matchQuantity);
+
         // 1. Tạo Transaction với user ảo
         // 2. Đánh dấu order đã khớp
         // 3. Gửi event khớp lệnh
@@ -328,16 +329,18 @@ public class MatchEngine {
         // 2. Sau delay, kiểm tra lại khoảng giá và khớp nếu hợp lệ
         scheduler.schedule(() -> {
             try {
-                System.out.println("⏳ Khớp anonymous cho order " + order.getId() +
-                        " sau " + delay.toSeconds() + " giây");
+
+                log.info("⏳ Khớp anonymous cho order {} sau {} giây", order.getId(), delay.toSeconds());
 
                 // Kiểm tra lại giá trước khi khớp (tránh khớp sai khi thị trường đã thay đổi)
                 Order matchingOrder = findMatchingOrderByPrice(order);
                 if (matchingOrder != null) {
-                    System.out.println("🔥 Tìm thấy order đối ứng trong lúc delay: " + matchingOrder);
-//                    match(order, matchingOrder);
+                    log.info("🔥 Tìm thấy order đối ứng trong lúc delay: {}", matchingOrder);
+                    match(order, matchingOrder);
                 } else {
                     // Nếu vẫn không có order thật => khớp với anonymous user
+                    System.out.println("🔥 Khớp với anonymous user");
+                    log.info("🔥Khớp với anonymous user (Không tìm thấy order đối ứng");
                     matchWithAnonymous(order, order.getPrice(), order.getQuantity());
                 }
 

@@ -180,7 +180,17 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
     @Override
     public void updateOrderStatus(Order orderUpdate, BigDecimal matchQuantity, BigDecimal matchPrice) {
-
+        if (orderUpdate.getStatus() == OrderStatus.PENDING) {
+            Order order = this.orderRepository.findById(orderUpdate.getId())
+                    .orElseThrow(() -> new OrderException(OrderErrorCode.ORDER_NOT_FOUND));
+            order.setStatus(orderUpdate.getStatus());
+            order.setUpdatedAt(Instant.now());
+            orderRepository.saveAndFlush(order);
+            this.updateOrderInOrderBookRedis(order);
+            log.info("Order {} updated to status {}", order.getId(), order.getStatus());
+            orderRepository.save(order);
+            return;
+        }
 
         BigDecimal amountToUnlock = orderUpdate.getSide().equals(Side.BID)
                 ? matchPrice.multiply(matchQuantity)
