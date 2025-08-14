@@ -53,7 +53,7 @@ public class MatchEngine {
         }
         switch (order.getType()) {
             case MARKET:
-                System.out.println("🔥 Nhận order mới: " + order);
+                log.info("🔥 Nhận order mới: {}", order);
                 handleMarketOrder(order);
                 break;
 
@@ -89,7 +89,7 @@ public class MatchEngine {
 
 
 
-        System.out.println("🔥 Nhận order mới market: " + order);
+        log.info("🔥 Nhận order mới MARKET: {}", order);
 
 
         // 1. Xác định chiều lệnh (BID hoặc ASK)
@@ -104,35 +104,36 @@ public class MatchEngine {
         }
 
         BigDecimal bestPrice = (side == Side.BID) ? stats.getMinAskPrice() : stats.getMaxBidPrice();
-        System.out.println("🔥 Best price for " + productId + ": " + bestPrice);
+        log.info("🔥 Best price for {}: {}", productId, bestPrice);
 
         String pairId = orderExternalAPI.getPairId(side, order.getGiveCryptoId(), order.getGetCryptoId());
 
         // 3. Tìm order đối ứng từ Redis (RedisZSet theo chiều ngược lại)
         Side counterSide = (side == Side.BID) ? Side.ASK : Side.BID;
         String redisZSetKey = "orderbook:" + pairId + ":" + counterSide.name().toLowerCase();
-        System.out.println("🔥 Redis ZSet key: " + redisZSetKey);
+        log.info("🔥 Redis ZSet key: {}", redisZSetKey);
 
         // Lấy order đối ứng có giá tốt nhất từ Redis
         Set<Object> orderRedis = redisTemplate.opsForZSet().range(redisZSetKey, 0, 0);
-        System.out.println("🔥 Order Redis: " + orderRedis);
+        log.info("🔥 Order Redis: {}", orderRedis);
 
 
         if (orderRedis != null && !orderRedis.isEmpty()) {
-            System.out.println("🔥 Found " + orderRedis.size() + " order stats");
+            log.info("🔥 Found {} order stats", orderRedis.size());
 
             String counterOrderKey = (String) orderRedis.iterator().next();
 
-            System.out.println("🔥 Found counter order key: " + counterOrderKey);
+            log.info("🔥 Found counter order key: {}", counterOrderKey);
 
-//            // 4. Lấy order từ Redis Hash
+
+//            // 4. Get order details from Redis Hash
             String orderJson = (String) redisTemplate.opsForHash().get("order:" + counterOrderKey, "order");
             if (orderJson == null) return;
-//
+
             Order counterOrder = objectMapper.readValue(orderJson, Order.class);
-            System.out.println("🔥 Counter order: " + counterOrder);
+            log.info("🔥 Counter order: {}", counterOrder);
 //
-//            // 5. So sánh giá
+//          // 5. Compare with best price to determine match with user or anonymous
             if ((side == Side.BID && counterOrder.getPrice().compareTo(bestPrice) <= 0) ||
                     (side == Side.ASK && counterOrder.getPrice().compareTo(bestPrice) >= 0)) {
 
@@ -143,8 +144,7 @@ public class MatchEngine {
             }
         } else {
             log.warn("No order redis available for {}", redisZSetKey);
-            // ❗8. Không có order nào phía đối ứng
-//            matchWithAnonymous(order, bestPrice, order.getQuantity());
+            matchWithAnonymous(order, bestPrice, order.getQuantity());
         }
 
         // 9. Gửi event lưu giao dịch vào DB hoặc xử lý hậu khớp
@@ -166,11 +166,11 @@ public class MatchEngine {
         log.info("🔥 Nhận order mới LIMIT: {}", order);
 
 
-        // 1. Xác định chiều lệnh (BID hoặc ASK)
+        // 1. Determine the side of the order (BID or ASK)
         Side side = order.getSide();
         String productId = this.getPairIdFromOrderBookData(side, order.getGiveCryptoId(), order.getGetCryptoId());
 
-        // 2. Lấy stats từ cache (đã cập nhật liên tục bởi BinanceWebSocketService)
+        // 2. Get stats from cache (continuously updated by BinanceWebSocketService)
         OrderBookStats stats = orderBookStatsService.getStats(productId);
         if (stats == null) {
             log.warn("No order book (Form Binance) stats available for {}", productId);
@@ -178,7 +178,7 @@ public class MatchEngine {
         }
 
         BigDecimal minPrice, maxPrice;
-        BigDecimal extendRange = BigDecimal.valueOf(500); // Khoảng mở rộng để tránh khớp sai
+        BigDecimal extendRange = BigDecimal.valueOf(500); // Khoảng mở rộng
         if (side == Side.BID) {
             minPrice = stats.getMinAskPrice().subtract(extendRange);
             maxPrice = stats.getMaxAskPrice().add(extendRange);
@@ -199,16 +199,14 @@ public class MatchEngine {
             log.info("🔥 Không tìm thấy order đối ứng trong Redis");
             // Nếu giá nằm trong khoảng min-max
             if( order.getPrice().compareTo(minPrice) >= 0 && order.getPrice().compareTo(maxPrice) <= 0) {
-                // Khớp với anonymous user sau 5-30s
+                // Match with anonymous user after a random delay from 5 to 15 seconds
                 scheduleAnonymousMatch(order, Duration.ofSeconds(ThreadLocalRandom.current().nextInt(5, 16)));
 
             } else {
                 // Set PENDING
                 log.info("🔥 Order {} nằm ngoài khoảng giá min-max, đặt trạng thái PENDING", order.getId());
-                order.setStatus(OrderStatus.PENDING);
 
-//                orderExternalAPI.updateOrder(order);
-//                orderExternalAPI.updateOrderInOrderBookRedis(order);
+                order.setStatus(OrderStatus.PENDING);
                 orderExternalAPI.updateOrderStatus(order, BigDecimal.ZERO, BigDecimal.ZERO);
                 log.info("🔥 Order {} đã được đặt trạng thái PENDING", order.getId());
             }

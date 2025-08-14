@@ -50,4 +50,27 @@ public class TradeController {
                             HttpStatus.BAD_REQUEST));
         }
     }
+
+    @PostMapping("/trade/unsubscribe/{productId}")
+    public ResponseEntity<APIResponse<?>> unSubscribeFromDepth(@PathVariable("productId") String productId) {
+        try {
+            log.info("Received request to UNSUBSCRIBE from depth20, product: {}", productId);
+
+            binanceWebSocketService.unsubscribeFromDepth(productId);
+
+            return ResponseEntity.status(HttpStatus.OK)
+                    .body(buildResponse(null,
+                            "Unsubscribed from depth20 for " +
+                                    productId, HttpStatus.OK));
+
+        } catch (Exception e) {
+
+            log.error("Failed to unsubscribe from depth20 for product {}: {}", productId, e.getMessage());
+
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(buildResponse(null,
+                            "Failed to unsubscribe: " + e.getMessage(),
+                            HttpStatus.BAD_REQUEST));
+        }
+    }
 }
