@@ -4,17 +4,22 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ntd.exchange_crypto.asset.AssetExternalAPI;
 import com.ntd.exchange_crypto.market.OrderBookData;
+import com.ntd.exchange_crypto.order.OrderDTO;
 import com.ntd.exchange_crypto.order.OrderExternalAPI;
+import com.ntd.exchange_crypto.order.OrderReceivedEvent;
 import com.ntd.exchange_crypto.order.enums.OrderStatus;
 import com.ntd.exchange_crypto.order.enums.OrderType;
 import com.ntd.exchange_crypto.order.enums.Side;
+import com.ntd.exchange_crypto.order.mapper.OrderMapper;
 import com.ntd.exchange_crypto.order.model.Order;
 import com.ntd.exchange_crypto.trade.OrderBookStatsService;
 import com.ntd.exchange_crypto.trade.model.OrderBookStats;
 import com.ntd.exchange_crypto.trade.model.Trade;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -29,19 +34,24 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Component
 public class MatchEngine {
+
+    private final ApplicationEventPublisher eventPublisher;
     private final TradeService tradeService;
     private final OrderBookStatsService orderBookStatsService;
     private final OrderExternalAPI orderExternalAPI;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+    private final OrderMapper orderMapper;
 
-    public MatchEngine(TradeService tradeService, OrderBookStatsService orderBookStatsService, OrderExternalAPI orderExternalAPI, AssetExternalAPI assetExternalAPI, AssetExternalAPI assetExternalAPI1, RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
+    public MatchEngine(TradeService tradeService, OrderBookStatsService orderBookStatsService, OrderExternalAPI orderExternalAPI, AssetExternalAPI assetExternalAPI, AssetExternalAPI assetExternalAPI1, SimpMessagingTemplate messagingTemplate, ApplicationEventPublisher eventPublisher, RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper, OrderMapper orderMapper) {
         this.tradeService = tradeService;
         this.orderBookStatsService = orderBookStatsService;
         this.orderExternalAPI = orderExternalAPI;
+        this.eventPublisher = eventPublisher;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.orderMapper = orderMapper;
     }
 
 
@@ -288,8 +298,27 @@ public class MatchEngine {
         orderExternalAPI.updateOrderStatus(makerOrder, matchQuantity, matchPrice);
 
 
+        OrderDTO orderDtoTaker = OrderDTO.builder()
+                .userId(takerOrder.getUserId())
+                .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
+                .side(takerOrder.getSide().name())
+                .type(takerOrder.getType().name())
+                .quantity(takerOrder.getQuantity().toString())
+                .price(takerOrder.getPrice().toString())
+                .build();
 
-        // 4. Gửi event để các module khác nhận biết
+        OrderDTO orderDtoMaker = OrderDTO.builder()
+                .userId(makerOrder.getUserId())
+                .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
+                .side(makerOrder.getSide().name())
+                .type(makerOrder.getType().name())
+                .quantity(makerOrder.getQuantity().toString())
+                .price(makerOrder.getPrice().toString())
+                .build();
+
+        eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
+        eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoMaker));
+
     }
 
     // Hàm khớp với anonymous user
@@ -319,6 +348,16 @@ public class MatchEngine {
         takerOrder.setStatus(OrderStatus.FILLED);
         orderExternalAPI.updateOrderStatus(takerOrder, matchQuantity, matchPrice);
 
+        OrderDTO orderDtoTaker = OrderDTO.builder()
+                .userId(takerOrder.getUserId())
+                .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
+                .side(takerOrder.getSide().name())
+                .type(takerOrder.getType().name())
+                .quantity(takerOrder.getQuantity().toString())
+                .price(takerOrder.getPrice().toString())
+                .build();
+        eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
+
     }
 
     // Hàm delay khớp với anonymous sau 5-30s
@@ -337,7 +376,7 @@ public class MatchEngine {
                     match(order, matchingOrder);
                 } else {
                     // Nếu vẫn không có order thật => khớp với anonymous user
-                    System.out.println("🔥 Khớp với anonymous user");
+                    log.info("🔥 Khớp với anonymous user");
                     log.info("🔥Khớp với anonymous user (Không tìm thấy order đối ứng");
                     matchWithAnonymous(order, order.getPrice(), order.getQuantity());
                 }

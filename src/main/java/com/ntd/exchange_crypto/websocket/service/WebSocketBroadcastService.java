@@ -1,6 +1,7 @@
 package com.ntd.exchange_crypto.websocket.service;
 
 import com.ntd.exchange_crypto.common.WebSocketMessageEvent;
+import com.ntd.exchange_crypto.common.WebSocketUserMessageEvent;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -24,8 +25,10 @@ public class WebSocketBroadcastService {
         messagingTemplate.convertAndSend(event.getDestination(), event.getPayload());
     }
 
-    public void sendToUser(String username, String destination, Object payload) {
-        messagingTemplate.convertAndSendToUser(username, destination, payload);
+    @EventListener
+    @Async("websocketExecutor")
+    public void sendToUser(WebSocketUserMessageEvent event) {
+        messagingTemplate.convertAndSendToUser(event.getUserId(), event.getDestination(), event.getPayload());
     }
 
     public void broadcastToTopic(String topic, Object payload) {

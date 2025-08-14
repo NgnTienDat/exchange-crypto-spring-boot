@@ -14,6 +14,7 @@ import com.ntd.exchange_crypto.order.enums.Side;
 import com.ntd.exchange_crypto.order.enums.TimeInForce;
 import com.ntd.exchange_crypto.order.exception.OrderErrorCode;
 import com.ntd.exchange_crypto.order.exception.OrderException;
+import com.ntd.exchange_crypto.order.mapper.OrderMapper;
 import com.ntd.exchange_crypto.order.model.Order;
 import com.ntd.exchange_crypto.order.repository.OrderRepository;
 import com.ntd.exchange_crypto.trade.OrderBookStatsService;
@@ -34,6 +35,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 
 @Service
@@ -49,8 +51,9 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     OrderRepository orderRepository;
     AssetExternalAPI assetExternalAPI;
     OrderBookStatsService orderBookStatsService;
+    OrderMapper orderMapper;
 
-
+    @Override
     public OrderResponse placeOrder(OrderCreationRequest orderCreationRequest) {
         log.info("Placing order for request: {}", orderCreationRequest);
 
@@ -65,6 +68,11 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         }
 
         // Step 3: Create the order object
+//        Order order = orderMapper.toOrder(orderCreationRequest);
+//        order.setStatus(OrderStatus.NEW);
+//        order.setUserId(userDTO.getId());
+
+
         Order order = Order.builder()
                 .userId(userDTO.getId())
                 .getCryptoId(orderCreationRequest.getGetCryptoId())
@@ -312,6 +320,24 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     public Order getOrderById(String orderId) {
         return orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderException(OrderErrorCode.ORDER_NOT_FOUND));
+    }
+
+    @Override
+    public List<OrderResponse> getOrdersByPairId(String pairId) {
+        String baseSymbol = pairId.split("-")[0];
+        String quoteSymbol = pairId.split("-")[1];
+
+        UserDTO userDTO = userExternalAPI.getUserLogin();
+        String userId = userDTO.getId();
+
+        List<Order> orders = orderRepository.findAllOrdersByPairAndUser(baseSymbol, quoteSymbol, userId);
+        if (orders == null) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        return orders.stream().map(order -> orderMapper.toOrderResponse(order, pairId)).toList();
+    }
+
+    @Override
+    public List<OrderResponse> getAllMyOrders() {
+        return List.of();
     }
 
     @Override

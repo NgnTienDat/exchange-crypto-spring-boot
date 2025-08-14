@@ -1,14 +1,20 @@
 package com.ntd.exchange_crypto.order;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.ntd.exchange_crypto.order.dto.request.OrderCreationRequest;
+import com.ntd.exchange_crypto.order.dto.response.OrderResponse;
 import com.ntd.exchange_crypto.order.enums.Side;
 import com.ntd.exchange_crypto.order.model.Order;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public interface OrderExternalAPI {
-
+    OrderResponse placeOrder(OrderCreationRequest orderCreationRequest);
     Order getOrderById(String orderId);
+    List<OrderResponse> getOrdersByPairId(String pairId);
+
+    List<OrderResponse> getAllMyOrders();
 
     Order createOrder(Order order);
 
