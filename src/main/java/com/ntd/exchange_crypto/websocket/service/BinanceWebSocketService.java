@@ -7,6 +7,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.websocket.ContainerProvider;
 import jakarta.websocket.WebSocketContainer;
+import lombok.Setter;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -123,7 +124,6 @@ public class BinanceWebSocketService {
         try {
             if (!activeDepthSubscriptions.contains(productId)) {
                 String depthStream = productId.toLowerCase() + "@depth20";
-                String klineStream = productId.toLowerCase() + "@kline_1m";
                 String tradeStream = productId.toLowerCase() + "@trade";
                 String wsUrl = BINANCE_WEBSOCKET_URL;
 
@@ -144,17 +144,17 @@ public class BinanceWebSocketService {
 
                 // Subscribe to both depth and kline streams
                 String subscriptionMessage = "{\"method\": \"SUBSCRIBE\", " +
-                        "\"params\": [\"" + depthStream + "\", \"" + klineStream + "\", \"" + tradeStream + "\"], " +
+                        "\"params\": [\"" + depthStream + "\", \"" + tradeStream + "\"], " +
                         "\"id\": 2}";
 
                 session.sendMessage(new TextMessage(subscriptionMessage)); //send subscribe
 
-                log.info("Subscribed to depth10 and kline_1m streams for product: {} at {}", productId, wsUrl);
+                log.info("Subscribed to depth20 and trade streams for product: {} at {}", productId, wsUrl);
             } else {
-                log.debug("Already subscribed to depth and kline streams for product: {}", productId);
+                log.debug("Already subscribed to depth and trade streams for product: {}", productId);
             }
         } catch (Exception e) {
-            log.error("Failed to subscribe to depth and kline streams for product: {}", productId, e);
+            log.error("Failed to subscribe to depth and trade streams for product: {}", productId, e);
             reconnect(productId);
         }
     }
@@ -165,18 +165,22 @@ public class BinanceWebSocketService {
             WebSocketSession session = productSessions.get(productId);
             if (session != null && session.isOpen()) {
                 String depthStream = productId.toLowerCase() + "@depth20";
+                String tradeStream = productId.toLowerCase() + "@trade";
+
                 session.sendMessage(new TextMessage(
-                        "{\"method\": \"UNSUBSCRIBE\", \"params\": [\"" + depthStream + "\"], \"id\": 3}"
+                        "{\"method\": \"UNSUBSCRIBE\", " +
+                                "\"params\": [\"" + depthStream + "\", \"" + tradeStream + "\"], " +
+                                "\"id\": 3}"
                 ));
                 session.close();
                 productSessions.remove(productId);
                 activeDepthSubscriptions.remove(productId);
-                log.info("Unsubscribed from depth stream for product: {}", productId);
+                log.info("Unsubscribed from depth and trade stream of product: {}", productId);
             } else {
                 log.debug("No active session to unsubscribe for product: {}", productId);
             }
         } catch (Exception e) {
-            log.error("Failed to unsubscribe from depth stream for product: {}", productId, e);
+            log.error("Failed to unsubscribe from depth and trade stream for product: {}", productId, e);
         }
     }
 
@@ -210,7 +214,6 @@ public class BinanceWebSocketService {
     }
 
 
-
     private void handleDepthMessage(String message, String productId) {
         try {
             JsonNode rootNode = objectMapper.readTree(message);
@@ -226,7 +229,7 @@ public class BinanceWebSocketService {
                 if (bidsNode != null && bidsNode.isArray()) {
                     Iterator<JsonNode> bidsIterator = bidsNode.iterator();
                     int count = 0;
-                    while (bidsIterator.hasNext() && count < 10) {
+                    while (bidsIterator.hasNext() && count < 20) {
                         JsonNode bid = bidsIterator.next();
                         String priceLevel = bid.get(0).asText();
                         BigDecimal quantity = new BigDecimal(bid.get(1).asText());
@@ -243,7 +246,7 @@ public class BinanceWebSocketService {
                 if (asksNode != null && asksNode.isArray()) {
                     Iterator<JsonNode> asksIterator = asksNode.iterator();
                     int count = 0;
-                    while (asksIterator.hasNext() && count < 10) {
+                    while (asksIterator.hasNext() && count < 20) {
                         JsonNode ask = asksIterator.next();
                         String priceLevel = ask.get(0).asText();
                         BigDecimal quantity = new BigDecimal(ask.get(1).asText());
@@ -370,6 +373,8 @@ public class BinanceWebSocketService {
     private class BinanceWebSocketHandler extends TextWebSocketHandler {
         private final String identifier; // productId cho depth, null cho ticker
         private final boolean isTicker;
+        @Setter
+        private boolean disconnecting = false; // Flag to track intentional closures
 
         public BinanceWebSocketHandler(String identifier, boolean isTicker) {
             this.identifier = identifier;
@@ -386,12 +391,12 @@ public class BinanceWebSocketService {
                 log.info("Connected to Binance WebSocket for product: {}", identifier);
                 productSessions.put(identifier, session);
                 String depthStream = identifier.toLowerCase() + "@depth20";
-                String klineStream = identifier.toLowerCase() + "@kline_1m";
+//                String klineStream = identifier.toLowerCase() + "@kline_1m";
                 String tradeStream = identifier.toLowerCase() + "@trade";
 
 
                 String subscriptionMessage = "{\"method\": \"SUBSCRIBE\", " +
-                        "\"params\": [\"" + depthStream + "\", \"" + klineStream + "\", \"" +tradeStream+ "\"], " +
+                        "\"params\": [\"" + depthStream + "\", \"" + tradeStream + "\"], " +
                         "\"id\": 2}";
                 try {
                     session.sendMessage(new TextMessage(subscriptionMessage));
@@ -409,8 +414,7 @@ public class BinanceWebSocketService {
             } else if (!isTicker) {
                 if (payload.contains("lastUpdateId")) {
                     handleDepthMessage(payload, identifier);
-                } else if (payload.contains("\"e\":\"kline\"")) {
-                    handleDepthMessage(payload, identifier); // Xử lý cả kline
+
                 } else if (payload.contains("\"e\":\"trade\"")) {
                     handleDepthMessage(payload, identifier);
                 }
@@ -428,17 +432,21 @@ public class BinanceWebSocketService {
             }
         }
 
-        @Override
-        public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) {
-            log.warn("WebSocket connection closed for {} - {}",
-                    isTicker ? "ticker" : "product " + identifier, closeStatus);
-            if (isTicker) {
-                tickerSession = null;
-                scheduleReconnect();
-            } else {
-                productSessions.remove(identifier);
-                reconnect(identifier);
-            }
-        }
+//        @Override
+//        public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) {
+//            log.warn("WebSocket connection closed for {} - {}",
+//                    isTicker ? "ticker" : "product " + identifier, closeStatus);
+//            if (!disconnecting) { // Only reconnect if the closure was not intentional
+//                if (isTicker) {
+//                    tickerSession = null;
+//                    scheduleReconnect();
+//                } else {
+//                    productSessions.remove(identifier);
+//                    reconnect(identifier);
+//                }
+//            } else {
+//                log.info("Intentional WebSocket closure for {}", isTicker ? "ticker" : "product " + identifier);
+//            }
+//        }
     }
 }
