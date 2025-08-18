@@ -13,6 +13,8 @@ public interface OrderExternalAPI {
     OrderResponse placeOrder(OrderCreationRequest orderCreationRequest);
     Order getOrderById(String orderId);
     List<OrderResponse> getOrdersByPairId(String pairId);
+    List<OrderResponse> getOpenOrders(String pairId);
+    List<OrderResponse> getOrderHistory(String pairId);
 
     List<OrderResponse> getAllMyOrders();
 
@@ -27,4 +29,6 @@ public interface OrderExternalAPI {
     void updateOrderInOrderBookRedis(Order order) throws JsonProcessingException;
 
     BigDecimal getBestPriceForMarket(Order order, String pairId);
+
+
 }

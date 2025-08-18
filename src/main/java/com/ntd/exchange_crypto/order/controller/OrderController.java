@@ -51,4 +51,20 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.OK)
                 .body(buildResponse(orders, "Fetched orders by pairId successfully", HttpStatus.OK));
     }
+
+    @GetMapping("/open/{productId}")
+    public ResponseEntity<APIResponse<List<OrderResponse>>> getOpenOrdersByPairId(@PathVariable("productId") String productId) {
+        log.info("Fetching orders for productId: {}", productId);
+        List<OrderResponse> orders = orderService.getOpenOrders(productId);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(buildResponse(orders, "Fetched orders by pairId successfully", HttpStatus.OK));
+    }
+
+    @GetMapping("/history/{productId}")
+    public ResponseEntity<APIResponse<List<OrderResponse>>> getOrderHistoryByPairId(@PathVariable("productId") String productId) {
+        log.info("Fetching orders for productId: {}", productId);
+        List<OrderResponse> orders = orderService.getOrderHistory(productId);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(buildResponse(orders, "Fetched orders by pairId successfully", HttpStatus.OK));
+    }
 }

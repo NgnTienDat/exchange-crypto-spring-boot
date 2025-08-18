@@ -19,4 +19,27 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             String userId
     );
 
+    @Query("SELECT o FROM Order o " +
+            "WHERE ((o.getCryptoId = :crypto1 AND o.giveCryptoId = :crypto2) " +
+            "    OR (o.getCryptoId = :crypto2 AND o.giveCryptoId = :crypto1)) " +
+            "AND o.userId = :userId " +
+            "AND o.status IN ('NEW', 'PENDING', 'PARTIALLY_FILLED')")
+    List<Order> findAllOpenOrdersByPairAndAndUser(
+            String crypto1,
+            String crypto2,
+            String userId
+    );
+
+
+    @Query("SELECT o FROM Order o " +
+            "WHERE ((o.getCryptoId = :crypto1 AND o.giveCryptoId = :crypto2) " +
+            "    OR (o.getCryptoId = :crypto2 AND o.giveCryptoId = :crypto1)) " +
+            "AND o.userId = :userId " +
+            "AND o.status IN ('CANCELED', 'EXPIRED', 'FILLED')")
+    List<Order> findAllOrdersHistoryByPairAndAndUser(
+            String crypto1,
+            String crypto2,
+            String userId
+    );
+
 }

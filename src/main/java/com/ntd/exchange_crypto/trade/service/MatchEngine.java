@@ -44,7 +44,12 @@ public class MatchEngine {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     private final OrderMapper orderMapper;
 
-    public MatchEngine(TradeService tradeService, OrderBookStatsService orderBookStatsService, OrderExternalAPI orderExternalAPI, AssetExternalAPI assetExternalAPI, AssetExternalAPI assetExternalAPI1, SimpMessagingTemplate messagingTemplate, ApplicationEventPublisher eventPublisher, RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper, OrderMapper orderMapper) {
+    public MatchEngine(TradeService tradeService,
+                       OrderBookStatsService orderBookStatsService,
+                       OrderExternalAPI orderExternalAPI, AssetExternalAPI assetExternalAPI,
+                       AssetExternalAPI assetExternalAPI1, SimpMessagingTemplate messagingTemplate,
+                       ApplicationEventPublisher eventPublisher, RedisTemplate<String,
+                    Object> redisTemplate, ObjectMapper objectMapper, OrderMapper orderMapper) {
         this.tradeService = tradeService;
         this.orderBookStatsService = orderBookStatsService;
         this.orderExternalAPI = orderExternalAPI;
@@ -91,12 +96,11 @@ public class MatchEngine {
         // 6. Gửi event tạo giao dịch / lưu vào DB
 
         /*
-        * ASK bán             BID mua
-        * 99                 101
-        * 100                100
-        * 101                99
-        * */
-
+         * ASK bán             BID mua
+         * 99                 101
+         * 100                100
+         * 101                99
+         * */
 
 
         log.info("🔥 Nhận order mới MARKET: {}", order);
@@ -208,9 +212,9 @@ public class MatchEngine {
         } else {
             log.info("🔥 Không tìm thấy order đối ứng trong Redis");
             // Nếu giá nằm trong khoảng min-max
-            if( order.getPrice().compareTo(minPrice) >= 0 && order.getPrice().compareTo(maxPrice) <= 0) {
+            if (order.getPrice().compareTo(minPrice) >= 0 && order.getPrice().compareTo(maxPrice) <= 0) {
                 // Match with anonymous user after a random delay from 5 to 15 seconds
-                scheduleAnonymousMatch(order, Duration.ofSeconds(ThreadLocalRandom.current().nextInt(5, 16)));
+                scheduleAnonymousMatch(order, Duration.ofSeconds(ThreadLocalRandom.current().nextInt(5, 8)));
 
             } else {
                 // Set PENDING
@@ -222,7 +226,6 @@ public class MatchEngine {
             }
 
 
-
         }
 
 
@@ -230,9 +233,6 @@ public class MatchEngine {
         // TH1: Khớp với order đối ứng cùng giá
         // TH2: Không có order đối ứng cùng giá, nhưng giá nằm trong khoảng min-max => khớp với anonymous user
         // TH3: Không có order đối ứng cùng giá, và giá nằm ngoài khoảng min-max => đặt trạng thái PENDING
-
-
-
 
 
         // 9. Gửi event lưu giao dịch vào DB hoặc xử lý hậu khớp;
@@ -299,21 +299,27 @@ public class MatchEngine {
 
 
         OrderDTO orderDtoTaker = OrderDTO.builder()
+                .id(takerOrder.getId())
                 .userId(takerOrder.getUserId())
                 .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
                 .side(takerOrder.getSide().name())
                 .type(takerOrder.getType().name())
-                .quantity(takerOrder.getQuantity().toString())
-                .price(takerOrder.getPrice().toString())
+                .quantity(takerOrder.getQuantity())
+                .price(takerOrder.getPrice())
+                .status(takerOrder.getStatus().name())
+                .filledQuantity(takerOrder.getFilledQuantity())
                 .build();
 
         OrderDTO orderDtoMaker = OrderDTO.builder()
+                .id(makerOrder.getId())
                 .userId(makerOrder.getUserId())
                 .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
                 .side(makerOrder.getSide().name())
                 .type(makerOrder.getType().name())
-                .quantity(makerOrder.getQuantity().toString())
-                .price(makerOrder.getPrice().toString())
+                .quantity(takerOrder.getQuantity())
+                .price(takerOrder.getPrice())
+                .status(makerOrder.getStatus().name())
+                .filledQuantity(takerOrder.getFilledQuantity())
                 .build();
 
         eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
@@ -349,12 +355,15 @@ public class MatchEngine {
         orderExternalAPI.updateOrderStatus(takerOrder, matchQuantity, matchPrice);
 
         OrderDTO orderDtoTaker = OrderDTO.builder()
+                .id(takerOrder.getId())
                 .userId(takerOrder.getUserId())
                 .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
                 .side(takerOrder.getSide().name())
                 .type(takerOrder.getType().name())
-                .quantity(takerOrder.getQuantity().toString())
-                .price(takerOrder.getPrice().toString())
+                .quantity(takerOrder.getQuantity())
+                .price(takerOrder.getPrice())
+                .status(takerOrder.getStatus().name())
+                .filledQuantity(takerOrder.getFilledQuantity())
                 .build();
         eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
 
@@ -443,8 +452,6 @@ public class MatchEngine {
         }
         return null;
     }
-
-
 
 
 }
