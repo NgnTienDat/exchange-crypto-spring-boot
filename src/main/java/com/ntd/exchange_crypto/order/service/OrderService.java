@@ -129,6 +129,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         }
 
         return OrderResponse.builder()
+                .id(order.getId())
                 .pairId(orderCreationRequest.toString())
                 .quantity(order.getQuantity())
                 .price(order.getPrice())
@@ -331,6 +332,32 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         String userId = userDTO.getId();
 
         List<Order> orders = orderRepository.findAllOrdersByPairAndUser(baseSymbol, quoteSymbol, userId);
+        if (orders == null) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        return orders.stream().map(order -> orderMapper.toOrderResponse(order, pairId)).toList();
+    }
+
+    @Override
+    public List<OrderResponse> getOpenOrders(String pairId) {
+        String baseSymbol = pairId.split("-")[0];
+        String quoteSymbol = pairId.split("-")[1];
+
+        UserDTO userDTO = userExternalAPI.getUserLogin();
+        String userId = userDTO.getId();
+
+        List<Order> orders = orderRepository.findAllOpenOrdersByPairAndAndUser(baseSymbol, quoteSymbol, userId);
+        if (orders == null) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        return orders.stream().map(order -> orderMapper.toOrderResponse(order, pairId)).toList();
+    }
+
+    @Override
+    public List<OrderResponse> getOrderHistory(String pairId) {
+        String baseSymbol = pairId.split("-")[0];
+        String quoteSymbol = pairId.split("-")[1];
+
+        UserDTO userDTO = userExternalAPI.getUserLogin();
+        String userId = userDTO.getId();
+
+        List<Order> orders = orderRepository.findAllOrdersHistoryByPairAndAndUser(baseSymbol, quoteSymbol, userId);
         if (orders == null) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
         return orders.stream().map(order -> orderMapper.toOrderResponse(order, pairId)).toList();
     }

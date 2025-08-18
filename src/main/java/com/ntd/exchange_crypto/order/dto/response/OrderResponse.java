@@ -4,6 +4,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -12,7 +13,7 @@ import java.math.BigDecimal;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Builder
 public class OrderResponse {
-//    String orderId;
+    String id;
     String pairId;
     String side;
     String type;
@@ -23,4 +24,5 @@ public class OrderResponse {
     BigDecimal remainingQuantity;
     String createdAt;
     String updatedAt;
+
 }
