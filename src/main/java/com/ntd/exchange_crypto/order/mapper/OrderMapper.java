@@ -13,7 +13,7 @@ import org.mapstruct.Mapper;
 @Mapper(componentModel = "spring")
 public interface OrderMapper {
     Order toOrder(OrderCreationRequest orderCreationRequest);
-    OrderResponse toOrderResponse(OrderDTO order);
+    OrderResponse toOrderResponse(Order order);
 //
 //    //Bo qua cac truong null khi update
 ////    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)

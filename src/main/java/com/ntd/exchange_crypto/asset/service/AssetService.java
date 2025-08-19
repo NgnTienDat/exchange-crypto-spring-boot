@@ -113,20 +113,32 @@ public class AssetService implements AssetInternalAPI, AssetExternalAPI {
     }
 
     @Override
-    public void updateAsset(String userId, String cryptoId, BigDecimal amount) {
+    public void updateAsset(String userId, String cryptoId, BigDecimal amount, String side) {
+        Asset userAsset = assetRepository.findAssetsByUserIdAndCryptoId(userId, cryptoId)
+                .orElse(null);
 
-        Asset userAsset = this.assetRepository
-                .findAssetsByUserIdAndCryptoId(userId, cryptoId)
-                .orElseThrow(() -> new AssetException(AssetErrorCode.USER_ASSET_NOTFOUND));
+        if (userAsset == null) {
+            if ("BID".equals(side)) {
+                userAsset = Asset.builder()
+                        .balance(amount)
+                        .lockedBalance(BigDecimal.ZERO)
+                        .cryptoId(cryptoId)
+                        .lastUpdated(Instant.now())
+                        .status(Asset.AssetStatus.ACTIVE)
+                        .userId(userId)
+                        .build();
+            } else {
+                throw new AssetException(AssetErrorCode.USER_ASSET_NOTFOUND);
+            }
+        } else {
+            userAsset.setBalance(userAsset.getBalance().add(amount));
+            userAsset.setLastUpdated(Instant.now());
+        }
 
         log.info("Updating asset for user: {}, cryptoId: {}, amount: {}", userId, cryptoId, amount);
-
-        userAsset.setBalance(userAsset.getBalance().add(amount));
-        userAsset.setLastUpdated(Instant.now());
         assetRepository.save(userAsset);
-
-
     }
+
 
 
     /* --------------------------------------- Internal --------------------------------------- */

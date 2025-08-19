@@ -102,6 +102,50 @@ public class MatchEngine {
          * 101                99
          * */
 
+        /* Đối với lệnh MARKET, nếu lệnh taker có quantity lớn hơn
+         * (b1) bid: limit, 0.5 BTC: 101 USDT -> PENDING
+         * (b2) bid: limit, 1 BTC: 100 USDT -> PENDING
+         * (b3) bid: limit, 0.5 BTC: 100 USDT -> PENDING
+         *
+         *
+         * order an (a1) ask: market, 2 BTC
+         *
+         * Kiểm tra nếu lệnh bid tốt nhất có quantity bé hơn ask taker thì tiếp tục lấy thêm lệnh tốt thứ 2, thứ 3...
+         * cho đến khi ask taker quantity <= tổng quantity của các lệnh bid đã lấy
+         * (a1) ask: market, 2 BTC -> khớp với (b1), (b2) và (b3)
+         * đưa vào match(a1, [b1, b2, b3]) với đối số là a1 và [b1, b2, b3]
+         *
+         *
+         * trong match(), khớp lần lượt từng lệnh bid trong danh sách với lệnh ask taker
+         * cập nhật trạng thái của từng lệnh bid
+         * cập nhật trạng thái của lệnh ask
+         *
+         *
+         * */
+
+        /* Đối với lệnh LIMIT, nếu lệnh taker có quantity lớn hơn
+         * (b1) bid: limit, 0.5 BTC: 105 USDT -> PENDING
+         * (b2) bid: limit, 1 BTC: 100 USDT -> PENDING
+         * (b3) bid: limit, 0.5 BTC: 100 USDT -> PENDING
+         *
+         *
+         * order an (a1) ask: market, 2 BTC: 100 USDT
+         *
+         * Kiểm tra nếu lệnh bid "cùng giá 100 USDT" có quantity bé hơn ask taker
+         * thì tiếp tục lấy thêm lệnh cùng giá thứ 2, thứ 3...
+         * cho đến khi ask taker quantity <= tổng quantity của các lệnh bid đã lấy.
+         * (a1) ask: market, 2 BTC -> khớp với (b2) và (b3)
+         * đưa vào match(a1, [b2, b3]) với đối số là a1 và [b2, b3]
+         *
+         *
+         * trong match(), khớp lần lượt từng lệnh bid trong danh sách với lệnh ask taker
+         * cập nhật trạng thái của từng lệnh bid
+         * cập nhật trạng thái của lệnh ask
+         *
+         *
+         * */
+
+
 
         log.info("🔥 Nhận order mới MARKET: {}", order);
 
@@ -278,6 +322,7 @@ public class MatchEngine {
         //   - Cập nhật lại quantity đã khớp (quantityFilled) cho cả hai order
         //   - Cập nhật lại trạng thái của cả hai order
         if (takerOrder.getQuantity().compareTo(makerOrder.getQuantity()) == 0) {
+
             takerOrder.setStatus(OrderStatus.FILLED);
             makerOrder.setStatus(OrderStatus.FILLED);
 
@@ -294,6 +339,9 @@ public class MatchEngine {
         if (takerOrder.getType() == OrderType.MARKET) {
             takerOrder.setPrice(matchPrice); // Cập nhật giá khớp
         }
+        log.info("🔥 Cập nhật trạng thái taker: {} và maker: {} là FILLED",
+                takerOrder.getStatus(), makerOrder.getStatus());
+
         orderExternalAPI.updateOrderStatus(takerOrder, matchQuantity, matchPrice);
         orderExternalAPI.updateOrderStatus(makerOrder, matchQuantity, matchPrice);
 

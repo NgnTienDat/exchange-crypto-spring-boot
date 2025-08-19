@@ -241,21 +241,21 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
             assetExternalAPI.updateAsset(
                     orderUpdate.getUserId(),
                     orderUpdate.getGetCryptoId(),
-                    matchQuantity);    // +0.1
+                    matchQuantity, orderUpdate.getSide().name());    // +0.1
             assetExternalAPI.updateAsset(
                     orderUpdate.getUserId(),
                     orderUpdate.getGiveCryptoId(),
-                    amountToUnlock.negate());  // -12050
+                    amountToUnlock.negate(), orderUpdate.getSide().name());  // -12050
         } else {
             //   ASK: get USDT - give BTC
             assetExternalAPI.updateAsset(
                     orderUpdate.getUserId(),
                     orderUpdate.getGetCryptoId(),
-                    matchQuantity.multiply(matchPrice));    // +12050
+                    matchQuantity.multiply(matchPrice), orderUpdate.getSide().name());    // +12050
             assetExternalAPI.updateAsset(
                     orderUpdate.getUserId(),
                     orderUpdate.getGiveCryptoId(),
-                    amountToUnlock.negate());  // -0.1
+                    amountToUnlock.negate(), orderUpdate.getSide().name());  // -0.1
 
         }
 
@@ -364,7 +364,25 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
     @Override
     public List<OrderResponse> getAllMyOrders() {
-        return List.of();
+        UserDTO userDTO = userExternalAPI.getUserLogin();
+        String userId = userDTO.getId();
+
+        List<Order> orders = orderRepository.findOrderByUserId(userId);
+        if (orders == null) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        return orders.stream().map(order -> {
+            return OrderResponse.builder()
+                    .pairId(getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId()))
+                    .id(order.getId())
+                    .quantity(order.getQuantity())
+                    .price(order.getPrice())
+                    .createdAt(String.valueOf(order.getCreatedAt()))
+                    .updatedAt(String.valueOf(order.getUpdatedAt()))
+                    .side(order.getSide().name())
+                    .type(order.getType().name())
+                    .status(order.getStatus().name())
+                    .filledQuantity(order.getFilledQuantity())
+                    .build();
+        }).toList();
     }
 
     @Override
