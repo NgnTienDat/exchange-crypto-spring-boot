@@ -19,6 +19,6 @@ public interface AssetExternalAPI {
 
     void unlockBalance(String userId ,String productId, BigDecimal amount);
 
-    void updateAsset(String userId, String cryptoId, BigDecimal amount);
+    void updateAsset(String userId, String cryptoId, BigDecimal amount, String side);
 
 }

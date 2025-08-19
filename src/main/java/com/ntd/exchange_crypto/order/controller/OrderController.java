@@ -67,4 +67,12 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.OK)
                 .body(buildResponse(orders, "Fetched orders by pairId successfully", HttpStatus.OK));
     }
+
+    @GetMapping("/history")
+    public ResponseEntity<APIResponse<List<OrderResponse>>> getAllOrder() {
+
+        List<OrderResponse> orders = orderService.getAllMyOrders();
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(buildResponse(orders, "Fetched all orders successfully", HttpStatus.OK));
+    }
 }
