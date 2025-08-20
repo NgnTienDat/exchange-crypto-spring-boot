@@ -35,7 +35,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 
 @Service
@@ -95,8 +98,20 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         System.out.println("🔥 PlaceOrder() Best price for " + pairId + ": " + bestPrice);
 
 
-        BigDecimal amountToLock = order.getSide().equals(Side.BID) ?
-                bestPrice.multiply(order.getQuantity()) : order.getQuantity();
+        BigDecimal amountToLock;
+        if (order.getType().equals(OrderType.MARKET)) {
+            if (order.getSide().equals(Side.BID))
+                try {
+                    amountToLock = calculateTotalCostFromOrderBook(order, pairId);
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                }
+            else amountToLock = order.getQuantity();
+        } else {
+            if (order.getSide().equals(Side.BID)) amountToLock = order.getPrice().multiply(order.getQuantity());
+            else amountToLock = order.getQuantity();
+        }
+
         try {
 
             // Step 4: Lock quantity in the user's asset
@@ -203,7 +218,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
         BigDecimal amountToUnlock = orderUpdate.getSide().equals(Side.BID)
                 ? matchPrice.multiply(matchQuantity)
-                : orderUpdate.getQuantity();
+                : matchQuantity;
 
 
         Order order = getOrderById(orderUpdate.getId());
@@ -264,13 +279,24 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
 
         // Nếu FILLED, kiểm tra và unlock bất kỳ dư thừa nào
-        if (order.getStatus() == OrderStatus.FILLED) {
-            BigDecimal initialLockedAmount = order.getPrice().multiply(order.getQuantity()); // Lưu locked amount ban đầu
-            if (order.getSide() == Side.BID && initialLockedAmount.compareTo(amountToUnlock) > 0) {
-                BigDecimal remainingLocked = initialLockedAmount.subtract(amountToUnlock);
+//        if (order.getStatus() == OrderStatus.FILLED) {
+//            BigDecimal initialLockedAmount = order.getPrice().multiply(order.getQuantity()); // Lưu locked amount ban đầu
+//            if (order.getSide() == Side.BID && initialLockedAmount.compareTo(amountToUnlock) > 0) {
+//                BigDecimal remainingLocked = initialLockedAmount.subtract(amountToUnlock);
+//                assetExternalAPI.unlockBalance(orderUpdate.getUserId(), orderUpdate.getGiveCryptoId(), remainingLocked);
+//            }
+//        }
+
+        if (order.getStatus() == OrderStatus.FILLED && order.getSide() == Side.BID) {
+            BigDecimal lockedInitially = order.getPrice().multiply(order.getQuantity());
+            BigDecimal lockedUsed = order.getFilledQuantity().multiply(matchPrice);
+            BigDecimal remainingLocked = lockedInitially.subtract(lockedUsed);
+
+            if (remainingLocked.compareTo(BigDecimal.ZERO) > 0) {
                 assetExternalAPI.unlockBalance(orderUpdate.getUserId(), orderUpdate.getGiveCryptoId(), remainingLocked);
             }
         }
+
         this.updateOrderInOrderBookRedis(order);
     }
 
@@ -420,6 +446,115 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         }
 
         return (side == Side.BID) ? stats.getMinAskPrice() : stats.getMaxBidPrice();
+    }
+
+
+    public BigDecimal calculateTotalCostFromOrderBook(Order order, String pairId) throws JsonProcessingException {
+        BigDecimal totalCost = BigDecimal.ZERO;
+        BigDecimal remainingQuantity = order.getQuantity();
+
+        // Lấy bestPrice từ StatsService
+        BigDecimal bestPrice = getBestPriceForMarket(order, pairId);
+
+        // Lấy counterOrders tốt nhất từ Redis
+        List<Order> counterOrders = getBestCounterOrders(pairId, order.getSide(), remainingQuantity);
+
+        if (counterOrders.isEmpty()) {
+            // Nếu không có counterOrder → lock toàn bộ theo bestPrice
+            return bestPrice.multiply(order.getQuantity());
+        }
+
+        // So sánh counterOrder tốt nhất với bestPrice
+        Order bestCounterOrder = counterOrders.get(0);
+        boolean isBetterPrice = (order.getSide() == Side.BID)
+                ? bestCounterOrder.getPrice().compareTo(bestPrice) < 0
+                : bestCounterOrder.getPrice().compareTo(bestPrice) > 0;
+
+        if (!isBetterPrice) {
+            // Giá Redis không tốt hơn → lock toàn bộ với bestPrice
+            return bestPrice.multiply(order.getQuantity());
+        }
+
+        // Trường hợp Redis có giá tốt hơn → cộng dồn
+        for (Order counterOrder : counterOrders) {
+            BigDecimal tradableQuantity = counterOrder.getQuantity().subtract(counterOrder.getFilledQuantity());
+            if (tradableQuantity.compareTo(remainingQuantity) >= 0) {
+                // Đủ số lượng cần
+                totalCost = totalCost.add(counterOrder.getPrice().multiply(remainingQuantity));
+                remainingQuantity = BigDecimal.ZERO;
+                break;
+            } else {
+                // Dùng hết counterOrder này
+                totalCost = totalCost.add(counterOrder.getPrice().multiply(tradableQuantity));
+                remainingQuantity = remainingQuantity.subtract(tradableQuantity);
+            }
+        }
+
+        // Nếu vẫn còn thiếu thì dùng bestPrice
+        if (remainingQuantity.compareTo(BigDecimal.ZERO) > 0) {
+            totalCost = totalCost.add(bestPrice.multiply(remainingQuantity));
+        }
+
+        return totalCost;
+    }
+
+
+    public List<Order> getBestCounterOrders(String pairId, Side side, BigDecimal remainingQty) throws JsonProcessingException {
+        List<Order> matchedCounterOrders = new ArrayList<>();
+
+        Side counterSide = (side == Side.BID) ? Side.ASK : Side.BID;
+        String redisZSetKey = "orderbook:" + pairId + ":" + counterSide.name().toLowerCase();
+
+        OrderBookStats stats = orderBookStatsService.getStats(pairId);
+        if (stats == null) {
+            return matchedCounterOrders;
+        }
+        BigDecimal bestPrice = (side == Side.BID) ? stats.getMinAskPrice() : stats.getMaxBidPrice();
+
+        Set<Object> counterOrderKeys = redisTemplate.opsForZSet().range(redisZSetKey, 0, 49);
+        if (counterOrderKeys == null || counterOrderKeys.isEmpty()) {
+            return matchedCounterOrders;
+        }
+
+        int counterCount = 0;
+        for (Object keyObj : counterOrderKeys) {
+            String counterOrderKey = (String) keyObj;
+            String orderJson = (String) redisTemplate.opsForHash().get("order:" + counterOrderKey, "order");
+            if (orderJson == null) continue;
+
+            Order counterOrder = objectMapper.readValue(orderJson, Order.class);
+
+            //  Lần đầu tiên check giá với bestPrice
+            if (counterCount == 0) {
+                boolean isPriceAcceptable =
+                        (side == Side.BID && counterOrder.getPrice().compareTo(bestPrice) <= 0) ||
+                                (side == Side.ASK && counterOrder.getPrice().compareTo(bestPrice) >= 0);
+
+                if (!isPriceAcceptable) {
+                    // Dừng nếu giá không tốt hơn bestPrice
+                    return Collections.emptyList();
+                }
+            }
+
+            //  Nếu giá hợp lệ thì lấy
+            boolean canMatch =
+                    (side == Side.BID && counterOrder.getPrice().compareTo(bestPrice) <= 0) ||
+                            (side == Side.ASK && counterOrder.getPrice().compareTo(bestPrice) >= 0);
+
+            if (!canMatch) break;
+
+            matchedCounterOrders.add(counterOrder);
+            counterCount++;
+
+            // Trừ dần quantity
+            if (remainingQty.compareTo(counterOrder.getQuantity()) > 0) {
+                remainingQty = remainingQty.subtract(counterOrder.getQuantity());
+            } else {
+                break;
+            }
+        }
+
+        return matchedCounterOrders;
     }
 
 }

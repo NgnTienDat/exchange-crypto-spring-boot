@@ -24,6 +24,8 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executors;
@@ -46,8 +48,7 @@ public class MatchEngine {
 
     public MatchEngine(TradeService tradeService,
                        OrderBookStatsService orderBookStatsService,
-                       OrderExternalAPI orderExternalAPI, AssetExternalAPI assetExternalAPI,
-                       AssetExternalAPI assetExternalAPI1, SimpMessagingTemplate messagingTemplate,
+                       OrderExternalAPI orderExternalAPI,
                        ApplicationEventPublisher eventPublisher, RedisTemplate<String,
                     Object> redisTemplate, ObjectMapper objectMapper, OrderMapper orderMapper) {
         this.tradeService = tradeService;
@@ -57,6 +58,7 @@ public class MatchEngine {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.orderMapper = orderMapper;
+
     }
 
 
@@ -83,7 +85,7 @@ public class MatchEngine {
     }
 
     // Xử lý lệnh Market
-    private void handleMarketOrder(Order order) throws JsonProcessingException {
+    private void handleMarketOrderZ(Order order) throws JsonProcessingException {
         // 1. Xác định chiều lệnh (BID hoặc ASK)
         // 2. Lấy bestAsk hoặc bestBid từ cache orderBookStatsService
         // 3. Lấy order đối ứng có giá tốt nhất từ Redis OrderBook
@@ -196,7 +198,7 @@ public class MatchEngine {
                     (side == Side.ASK && counterOrder.getPrice().compareTo(bestPrice) >= 0)) {
 
                 // ✅ 6. Khớp lệnh giữa 2 user
-                match(order, counterOrder);
+//                match(order, counterOrder);
             } else {
                 matchWithAnonymous(order, bestPrice, order.getQuantity());
             }
@@ -206,6 +208,78 @@ public class MatchEngine {
         }
 
         // 9. Gửi event lưu giao dịch vào DB hoặc xử lý hậu khớp
+    }
+    private void handleMarketOrder(Order order) throws JsonProcessingException {
+        log.info("🔥 Nhận order mới MARKET: {}", order);
+
+        // 1. Xác định chiều lệnh (BID hoặc ASK)
+        Side side = order.getSide();
+        String productId = this.getPairIdFromOrderBookData(side, order.getGiveCryptoId(), order.getGetCryptoId());
+
+        // 2. Lấy stats từ cache (đã cập nhật liên tục bởi BinanceWebSocketService)
+        OrderBookStats stats = orderBookStatsService.getStats(productId);
+        if (stats == null) {
+            log.warn("No order book (Form Binance) stats available for {}", productId);
+            return;
+        }
+
+        BigDecimal bestPrice = (side == Side.BID) ? stats.getMinAskPrice() : stats.getMaxBidPrice();
+        log.info("🔥 Best price for {}: {}", productId, bestPrice);
+
+        String pairId = orderExternalAPI.getPairId(side, order.getGiveCryptoId(), order.getGetCryptoId());
+
+        // 3. Tìm order đối ứng từ Redis (RedisZSet theo chiều ngược lại)
+        Side counterSide = (side == Side.BID) ? Side.ASK : Side.BID;
+        String redisZSetKey = "orderbook:" + pairId + ":" + counterSide.name().toLowerCase();
+        log.info("🔥 Redis ZSet key: {}", redisZSetKey);
+
+        // ---- Logic mới ----
+        BigDecimal remainingQty = order.getQuantity();
+        List<Order> matchedCounterOrders = new ArrayList<>();
+
+        // Lấy nhiều lệnh từ Redis (ví dụ lấy top 50)
+        Set<Object> counterOrders = redisTemplate.opsForZSet().range(redisZSetKey, 0, 49);
+
+        if (counterOrders != null && !counterOrders.isEmpty()) {
+            log.info("🔥 Found {} counter orders in Redis", counterOrders.size());
+            int counterOrderCount = 0;
+            for (Object keyObj : counterOrders) {
+                String counterOrderKey = (String) keyObj;
+                String orderJson = (String) redisTemplate.opsForHash().get("order:" + counterOrderKey, "order");
+                if (orderJson == null) continue;
+
+                Order counterOrder = objectMapper.readValue(orderJson, Order.class);
+
+                // ✅ Check giá trước khi match
+                if ((side == Side.BID && counterOrder.getPrice().compareTo(bestPrice) <= 0) ||
+                        (side == Side.ASK && counterOrder.getPrice().compareTo(bestPrice) >= 0)) {
+
+                    matchedCounterOrders.add(counterOrder);
+                    log.info("Khớp lệnh lần: {}", ++counterOrderCount);
+
+                    // Trừ dần quantity
+                    if (remainingQty.compareTo(counterOrder.getQuantity()) > 0) {
+                        remainingQty = remainingQty.subtract(counterOrder.getQuantity());
+                    } else {
+                        remainingQty = BigDecimal.ZERO;
+                        break;
+                    }
+                } else {
+                    // nếu giá không phù hợp thì break luôn (vì RedisZSet đã sắp theo giá)
+                    break;
+                }
+            }
+        }
+
+        // Nếu tìm được counterOrders thì match
+        if (!matchedCounterOrders.isEmpty()) {
+            match(order, matchedCounterOrders);
+        }
+
+        // Nếu còn dư -> match với anonymous
+        if (remainingQty.compareTo(BigDecimal.ZERO) > 0) {
+            matchWithAnonymous(order, bestPrice, remainingQty);
+        }
     }
 
 
@@ -252,7 +326,7 @@ public class MatchEngine {
 
         if (matchingOrder != null) {
             log.info("🔥 Tìm thấy order đối ứng cùng giá: {}", matchingOrder);
-            match(order, matchingOrder);
+//            match(order, matchingOrder);
         } else {
             log.info("🔥 Không tìm thấy order đối ứng trong Redis");
             // Nếu giá nằm trong khoảng min-max
@@ -291,7 +365,7 @@ public class MatchEngine {
     }
 
 
-    private void match(Order takerOrder, Order makerOrder) {
+    private void matchZ(Order takerOrder, Order makerOrder) {
         // takerOrder: new order vừa nhận
         // makerOrder: counter order đã tìm thấy từ Redis
         // Nếu makerOrder có side là BID thì isBuyerMaker = true
@@ -375,6 +449,118 @@ public class MatchEngine {
 
     }
 
+    private void match(Order takerOrder, List<Order> makerOrders) {
+        // Lấy quantity còn lại của taker (chưa khớp hết)
+        BigDecimal remainingTakerQty = takerOrder.getQuantity();
+        BigDecimal takerFilled = takerOrder.getFilledQuantity() != null ?
+                takerOrder.getFilledQuantity() : BigDecimal.ZERO;
+
+        log.info("🔥 Bắt đầu khớp lệnh: Taker {} với {} Maker orders", takerOrder.getId(), makerOrders.size());
+
+        for (Order makerOrder : makerOrders) {
+            // Nếu taker đã khớp xong thì dừng
+            if (remainingTakerQty.compareTo(BigDecimal.ZERO) <= 0) break;
+
+            // Quantity còn lại của maker = quantity gốc - đã filled
+            BigDecimal makerRemaining = makerOrder.getQuantity().subtract(
+                    makerOrder.getFilledQuantity() != null ? makerOrder.getFilledQuantity() : BigDecimal.ZERO
+            );
+
+            // Nếu maker không còn quantity thì bỏ qua
+            if (makerRemaining.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            // Xác định quantity có thể khớp = min(takerRemaining, makerRemaining)
+            BigDecimal matchQuantity = remainingTakerQty.min(makerRemaining);
+            BigDecimal matchPrice = makerOrder.getPrice(); // Giá lấy từ maker
+            boolean isBuyerMaker = makerOrder.getSide() == Side.BID;
+
+            // ==================== 1. Tạo bản ghi giao dịch ====================
+            Trade trade = Trade.builder()
+                    .takerOrderId(takerOrder.getId())
+                    .makerOrderId(makerOrder.getId())
+                    .productId(orderExternalAPI.getPairId(
+                            takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()
+                    ))
+                    .price(matchPrice)
+                    .quantity(matchQuantity)
+                    .isBuyerMaker(isBuyerMaker)
+                    .build();
+
+            tradeService.saveTrade(trade);
+            log.info("🔥 Đã tạo giao dịch: {}", trade);
+
+            // ==================== 2. Cập nhật filledQuantity ====================
+            takerFilled = takerFilled.add(matchQuantity);
+            takerOrder.setFilledQuantity(takerFilled);
+
+            BigDecimal makerFilled = makerOrder.getFilledQuantity() != null ?
+                    makerOrder.getFilledQuantity() : BigDecimal.ZERO;
+            makerOrder.setFilledQuantity(makerFilled.add(matchQuantity));
+
+            // ==================== 3. Cập nhật trạng thái ====================
+            if (takerOrder.getFilledQuantity().compareTo(takerOrder.getQuantity()) >= 0) {
+                takerOrder.setStatus(OrderStatus.FILLED);
+            } else {
+                takerOrder.setStatus(OrderStatus.PARTIALLY_FILLED);
+            }
+
+            if (makerOrder.getFilledQuantity().compareTo(makerOrder.getQuantity()) >= 0) {
+                makerOrder.setStatus(OrderStatus.FILLED);
+            } else {
+                makerOrder.setStatus(OrderStatus.PARTIALLY_FILLED);
+            }
+
+            // Với lệnh MARKET thì giá cuối cùng = giá của maker vừa khớp
+            if (takerOrder.getType() == OrderType.MARKET) {
+                takerOrder.setPrice(matchPrice);
+            }
+
+            // ==================== 4. Đồng bộ trạng thái ra ngoài ====================
+            orderExternalAPI.updateOrderStatus(takerOrder, matchQuantity, matchPrice);
+            orderExternalAPI.updateOrderStatus(makerOrder, matchQuantity, matchPrice);
+
+            // Tạo DTO để bắn event
+            OrderDTO orderDtoTaker = OrderDTO.builder()
+                    .id(takerOrder.getId())
+                    .userId(takerOrder.getUserId())
+                    .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
+                    .side(takerOrder.getSide().name())
+                    .type(takerOrder.getType().name())
+                    .quantity(takerOrder.getQuantity())
+                    .price(takerOrder.getPrice())
+                    .status(takerOrder.getStatus().name())
+                    .filledQuantity(takerOrder.getFilledQuantity())
+                    .build();
+
+            OrderDTO orderDtoMaker = OrderDTO.builder()
+                    .id(makerOrder.getId())
+                    .userId(makerOrder.getUserId())
+                    .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
+                    .side(makerOrder.getSide().name())
+                    .type(makerOrder.getType().name())
+                    .quantity(makerOrder.getQuantity())
+                    .price(makerOrder.getPrice())
+                    .status(makerOrder.getStatus().name())
+                    .filledQuantity(makerOrder.getFilledQuantity())
+                    .build();
+
+            // Bắn event cập nhật trạng thái của cả taker & maker
+            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
+            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoMaker));
+
+            // ==================== 5. Giảm remainingQty của taker ====================
+            remainingTakerQty = remainingTakerQty.subtract(matchQuantity);
+        }
+
+        log.info("🔥 Hoàn tất khớp lệnh: Taker {} status={}, filled={}/{}",
+                takerOrder.getId(),
+                takerOrder.getStatus(),
+                takerOrder.getFilledQuantity(),
+                takerOrder.getQuantity()
+        );
+    }
+
+
     // Hàm khớp với anonymous user
     private void matchWithAnonymous(Order takerOrder, BigDecimal matchPrice, BigDecimal matchQuantity) {
         log.info("🔥 Khớp lệnh với anonymous user: Order: {}, Price: {}, Quantity: {}", takerOrder, matchPrice, matchQuantity);
@@ -430,7 +616,7 @@ public class MatchEngine {
                 Order matchingOrder = findMatchingOrderByPrice(order);
                 if (matchingOrder != null) {
                     log.info("🔥 Tìm thấy order đối ứng trong lúc delay: {}", matchingOrder);
-                    match(order, matchingOrder);
+//                    match(order, matchingOrder);
                 } else {
                     // Nếu vẫn không có order thật => khớp với anonymous user
                     log.info("🔥 Khớp với anonymous user");
