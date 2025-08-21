@@ -107,6 +107,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
                     throw new RuntimeException(e);
                 }
             else amountToLock = order.getQuantity();
+
         } else {
             if (order.getSide().equals(Side.BID)) amountToLock = order.getPrice().multiply(order.getQuantity());
             else amountToLock = order.getQuantity();
@@ -120,7 +121,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
             // Step 5: Save the order to the database
             order = orderRepository.save(order);
 
-
+//
             Order finalOrder = order;
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
                 @Override
@@ -226,28 +227,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         order.setFilledQuantity(order.getFilledQuantity().add(matchQuantity));
         order.setUpdatedAt(Instant.now());
 
-        // FILLED
-        // c8d: admin                        BID: Maker
-        // BTC: 5, USDT: 1000000            -> BTC: 5.1, USDT: 1000000-120500*0.1 = 987950
-        // BID - BUY (get BTC - give USDT): 0.1 : 120500 -> locked USDT: 0.1 * 120500 = 12050
 
-
-        // 121: user                         ASK: Taker
-        // BTC: 1, USDT: 1000000            -> BTC: 0.9, USDT: 1000000+120500*0.1 = 1012050
-        // ASK - SELL (give BTC - get USDT): 0.1 : 120500 -> locked BTC: 0.1
-
-
-        // PARTIALLY FILLED
-        // c8d: admin
-        // BTC: 5.2, USDT: 987950            -> BTC: 5.3, USDT: 987950-121500*0.1 = 975800 (FILLED)
-        //                                   -> BTC: 5.25, USDT: 987950-121500*0.05 = 981875 (PARTIALLY FILLED)
-        // BID - BUY (get BTC - give USDT): 0.1 : 121500 -> locked USDT: 0.1 * 121500 = 12150
-        // BID - BUY (get BTC - give USDT): 0.1 : 121500 -> locked USDT: 0.05 * 121500 = 6075
-
-
-        // 121: user
-        // BTC: 0.9, USDT: 1012050            -> BTC: 0.85, USDT: 1012050+121500*0.05 = 1018125 (FILLED)
-        // ASK - SELL (give BTC - get USDT): 0.05 : 121500 -> locked BTC: 0.05
 
         assetExternalAPI.unlockBalance(orderUpdate.getUserId(), orderUpdate.getGiveCryptoId(), amountToUnlock);
 
@@ -276,16 +256,6 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
         orderRepository.save(order);
         log.info("Order updated: {}", order);
-
-
-        // Nếu FILLED, kiểm tra và unlock bất kỳ dư thừa nào
-//        if (order.getStatus() == OrderStatus.FILLED) {
-//            BigDecimal initialLockedAmount = order.getPrice().multiply(order.getQuantity()); // Lưu locked amount ban đầu
-//            if (order.getSide() == Side.BID && initialLockedAmount.compareTo(amountToUnlock) > 0) {
-//                BigDecimal remainingLocked = initialLockedAmount.subtract(amountToUnlock);
-//                assetExternalAPI.unlockBalance(orderUpdate.getUserId(), orderUpdate.getGiveCryptoId(), remainingLocked);
-//            }
-//        }
 
         if (order.getStatus() == OrderStatus.FILLED && order.getSide() == Side.BID) {
             BigDecimal lockedInitially = order.getPrice().multiply(order.getQuantity());
@@ -316,7 +286,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
             redisTemplate.opsForZSet().remove(zsetKey, order.getId());
 
         } else if (order.getStatus() == OrderStatus.PARTIALLY_FILLED) {
-            BigDecimal remainingQuantity = order.getQuantity().subtract(order.getFilledQuantity());
+//            BigDecimal remainingQuantity = order.getQuantity().subtract(order.getFilledQuantity());
 
             Order redisOrder = new Order();
             try {
@@ -324,7 +294,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
             } catch (Exception e) {
                 throw new RuntimeException("Copy order failed", e);
             }
-            redisOrder.setQuantity(remainingQuantity);
+//            redisOrder.setQuantity(remainingQuantity);
 
             try {
                 redisTemplate.opsForHash().put(hashKey, "order", objectMapper.writeValueAsString(redisOrder));
@@ -499,7 +469,8 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     }
 
 
-    public List<Order> getBestCounterOrders(String pairId, Side side, BigDecimal remainingQty) throws JsonProcessingException {
+    public List<Order> getBestCounterOrders(String pairId, Side side, BigDecimal remainingQty)
+            throws JsonProcessingException {
         List<Order> matchedCounterOrders = new ArrayList<>();
 
         Side counterSide = (side == Side.BID) ? Side.ASK : Side.BID;
@@ -558,3 +529,27 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     }
 
 }
+
+
+// FILLED
+// c8d: admin                        BID: Maker
+// BTC: 5, USDT: 1000000            -> BTC: 5.1, USDT: 1000000-120500*0.1 = 987950
+// BID - BUY (get BTC - give USDT): 0.1 : 120500 -> locked USDT: 0.1 * 120500 = 12050
+
+
+// 121: user                         ASK: Taker
+// BTC: 1, USDT: 1000000            -> BTC: 0.9, USDT: 1000000+120500*0.1 = 1012050
+// ASK - SELL (give BTC - get USDT): 0.1 : 120500 -> locked BTC: 0.1
+
+
+// PARTIALLY FILLED
+// c8d: admin
+// BTC: 5.2, USDT: 987950            -> BTC: 5.3, USDT: 987950-121500*0.1 = 975800 (FILLED)
+//                                   -> BTC: 5.25, USDT: 987950-121500*0.05 = 981875 (PARTIALLY FILLED)
+// BID - BUY (get BTC - give USDT): 0.1 : 121500 -> locked USDT: 0.1 * 121500 = 12150
+// BID - BUY (get BTC - give USDT): 0.1 : 121500 -> locked USDT: 0.05 * 121500 = 6075
+
+
+// 121: user
+// BTC: 0.9, USDT: 1012050            -> BTC: 0.85, USDT: 1012050+121500*0.05 = 1018125 (FILLED)
+// ASK - SELL (give BTC - get USDT): 0.05 : 121500 -> locked BTC: 0.05
