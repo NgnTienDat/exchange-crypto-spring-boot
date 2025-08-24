@@ -9,6 +9,7 @@ import com.ntd.exchange_crypto.auth.dto.response.AuthenticationResponse;
 import com.ntd.exchange_crypto.auth.dto.response.IntrospectResponse;
 import com.ntd.exchange_crypto.auth.dto.response.TFAResponse;
 import com.nimbusds.jose.JOSEException;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.text.ParseException;
 
@@ -27,4 +28,6 @@ public interface AuthenticationExternalAPI {
     AuthenticationResponse verifyCode(VerificationRequest verificationRequest);
 
     boolean isUserLogin(String email);
+
+    String getClientIpAddress(HttpServletRequest request);
 }

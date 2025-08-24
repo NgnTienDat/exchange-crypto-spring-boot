@@ -7,14 +7,18 @@ import lombok.experimental.FieldDefaults;
 
 @Getter
 @Setter
+@ToString
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class AuthenticationResponse {
+
     boolean isAuthenticated;
     String token;
     String secretImageUri;
+    String condition;
+    String message;
 }
 

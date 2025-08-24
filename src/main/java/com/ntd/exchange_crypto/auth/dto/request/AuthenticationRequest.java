@@ -15,4 +15,10 @@ public class AuthenticationRequest {
     String email;
     @NotBlank(message = "NOT_BLANK")
     String password;
+    @NotBlank(message = "NOT_BLANK")
+    String deviceId;
+    @NotBlank(message = "NOT_BLANK")
+    String userAgent;
+
+    String ipAddress;
 }

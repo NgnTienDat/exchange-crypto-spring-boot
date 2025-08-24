@@ -13,9 +13,12 @@ import com.ntd.exchange_crypto.auth.dto.response.TFAResponse;
 import com.ntd.exchange_crypto.auth.exception.AuthErrorCode;
 import com.ntd.exchange_crypto.auth.exception.AuthException;
 import com.ntd.exchange_crypto.auth.model.InvalidatedToken;
+import com.ntd.exchange_crypto.auth.model.TrustedDevice;
 import com.ntd.exchange_crypto.auth.repository.AuthenticationRepository;
 import com.ntd.exchange_crypto.auth.repository.InvalidatedTokenRepository;
+import com.ntd.exchange_crypto.auth.repository.TrustedDeviceRepository;
 import com.ntd.exchange_crypto.user.model.User;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -45,6 +48,7 @@ public class AuthenticationService implements AuthenticationExternalAPI {
     private final AuthenticationRepository authenticationRepository;
     private final InvalidatedTokenRepository tokenRepository;
     private final TwoFactorAuthenticationService tfaService;
+    private final TrustedDeviceRepository trustedDeviceRepository;
 
     @NonFinal
     @Value("${auth.signer-key}")
@@ -58,9 +62,19 @@ public class AuthenticationService implements AuthenticationExternalAPI {
     @Value("${auth.refreshable-duration}")
     protected long REFRESH_DURATION;
 
+
+    /**
+     * Login:
+     * -> Check user is enabled 2FA or not
+     *      -> if not enabled, return token
+     * -> if enabled, check if device is trusted (verified == true) -> return token
+     * -> if not trusted, user enter code from authenticator app -> verify code -> return token
+     * */
+
     @Override
     public AuthenticationResponse authenticate(AuthenticationRequest authenticationRequest) {
-        User user = authenticationRepository.findByEmail(authenticationRequest.getEmail())
+        User user = authenticationRepository
+                .findByEmail(authenticationRequest.getEmail())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_EXISTS));
 
         if (!user.isActive()) throw new AuthException(AuthErrorCode.ACCOUNT_LOCKED);
@@ -70,11 +84,39 @@ public class AuthenticationService implements AuthenticationExternalAPI {
 
         if (!isAuthenticated) throw new AuthException(AuthErrorCode.UNAUTHENTICATED);
 
+        TrustedDevice device = trustedDeviceRepository
+                .findByDeviceIdAndUserId(authenticationRequest.getDeviceId(), user.getId())
+                .orElseGet(() -> trustedDeviceRepository.save(
+                        TrustedDevice.builder()
+                                .userId(user.getId())
+                                .deviceId(authenticationRequest.getDeviceId())
+                                .userAgent(authenticationRequest.getUserAgent())
+                                .ipAddress(authenticationRequest.getIpAddress())
+                                .verified(false)
+                                .build()
+                ));
+
+        if (!user.isTfaEnabled()) {
+            String token = generateToken(user);
+            return AuthenticationResponse.builder()
+                    .token(token)
+                    .isAuthenticated(true)
+                    .build();
+        }
+
+        if (!device.isVerified()) {
+            return AuthenticationResponse.builder()
+                    .message(user.getId())
+                    .condition("2FA_REQUIRED")
+                    .build();
+        }
+
         String token = generateToken(user);
 
         return AuthenticationResponse.builder()
                 .token(token)
                 .isAuthenticated(true)
+                .condition("SUCCESS")
                 .build();
     }
 
@@ -82,7 +124,8 @@ public class AuthenticationService implements AuthenticationExternalAPI {
     public TFAResponse enableTwoFactorAuthentication() {
         var context = SecurityContextHolder.getContext();
         String email = context.getAuthentication().getName();
-        User user = authenticationRepository.findByEmail(email)
+        User user = authenticationRepository
+                .findByEmail(email)
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_EXISTS));
 
         if (!user.isTfaEnabled()) {
@@ -155,7 +198,8 @@ public class AuthenticationService implements AuthenticationExternalAPI {
         }
 
         String email = signedJWT.getJWTClaimsSet().getSubject();
-        User user = authenticationRepository.findByEmail(email)
+        User user = authenticationRepository
+                .findByEmail(email)
                 .orElseThrow(() -> new AuthException(AuthErrorCode.UNAUTHENTICATED));
 
         String newToken = generateToken(user);
@@ -202,9 +246,9 @@ public class AuthenticationService implements AuthenticationExternalAPI {
 
     @Override
     public AuthenticationResponse verifyCode(VerificationRequest verificationRequest) {
-        var context = SecurityContextHolder.getContext();
-        String email = context.getAuthentication().getName();
-        User user = authenticationRepository.findByEmail(email)
+
+        User user = authenticationRepository
+                .findById(verificationRequest.getUserId())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_EXISTS));
 
         if (tfaService.isOtpNotValid(user.getSecret(), verificationRequest.getCode())) {
@@ -213,6 +257,15 @@ public class AuthenticationService implements AuthenticationExternalAPI {
 
         user.setTfaEnabled(true);
         authenticationRepository.save(user);
+
+        TrustedDevice device = trustedDeviceRepository
+                .findByDeviceIdAndUserId(verificationRequest.getDeviceId(), user.getId())
+                .orElseThrow(() -> new AuthException(AuthErrorCode.DEVICE_NOT_FOUND));
+
+        device.setVerified(true);
+        device.setVerifiedAt(Instant.now());
+        trustedDeviceRepository.save(device);
+
         String token = generateToken(user);
         return AuthenticationResponse.builder()
                 .token(token)
@@ -226,5 +279,20 @@ public class AuthenticationService implements AuthenticationExternalAPI {
         var context = SecurityContextHolder.getContext();
         String email = context.getAuthentication().getName();
         return emailAuthentication != null && emailAuthentication.equals(email);
+    }
+
+    @Override
+    public String getClientIpAddress(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For"); // nếu dùng proxy / load balancer
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr(); // fallback
+        }
+        return ip;
     }
 }
