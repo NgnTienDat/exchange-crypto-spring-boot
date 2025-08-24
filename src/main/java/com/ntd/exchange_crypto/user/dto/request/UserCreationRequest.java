@@ -24,7 +24,7 @@ public class UserCreationRequest {
 //    @Size(max = 255, message = "Email không được quá 100 ký tự!")
     String email;
 
-    @NotBlank(message = "NOT_BLANK")
+//    @NotBlank(message = "NOT_BLANK")
     @Pattern(regexp = "^(\\+84|0)(3|5|7|8|9)[0-9]{8}$", message = "INVALID_PHONE")
     String phone;
 
@@ -38,7 +38,7 @@ public class UserCreationRequest {
 
 
     @Size(max = 100, message = "Họ không được quá 45 ký tự!")
-    @NotBlank(message = "NOT_BLANK")
+//    @NotBlank(message = "NOT_BLANK")
     String fullName;
 
     boolean tfaEnabled;

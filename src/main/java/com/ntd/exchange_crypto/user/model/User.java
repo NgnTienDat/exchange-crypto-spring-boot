@@ -27,10 +27,10 @@ public class User {
     @Column(nullable = false)
     String password;
 
-    @Column(name = "full_name", nullable = false)
+    @Column(name = "full_name")
     String fullName;
 
-    @Column(nullable = false, unique = true, length = 15)
+    @Column(unique = true, length = 15)
     String phone;
 
     String avatar;

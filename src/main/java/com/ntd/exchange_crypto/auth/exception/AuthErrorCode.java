@@ -16,7 +16,8 @@ public enum AuthErrorCode {
     UNAUTHORIZED(2003, "You dont have permission", HttpStatus.FORBIDDEN),
     QR_GENERATED_FAILED(2004, "You dont have permission", HttpStatus.BAD_REQUEST),
     INVALID_CODE(2004, "Invalid verification code", HttpStatus.BAD_REQUEST),
-    ACCOUNT_LOCKED(2005, "Your account is locked", HttpStatus.FORBIDDEN),
+    ACCOUNT_LOCKED(2005, "Your account is locked", HttpStatus.BAD_REQUEST),
+    DEVICE_NOT_FOUND(2006, "Device not found", HttpStatus.BAD_REQUEST),
     ;
 
     private int code;

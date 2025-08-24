@@ -11,8 +11,12 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Builder
 public class VerificationRequest {
-//    @NotBlank(message = "NOT_BLANK")
-//    String email;
+    @NotBlank(message = "NOT_BLANK")
+    String userId;
+
     @NotBlank(message = "NOT_BLANK")
     String code;
+
+    @NotBlank(message = "NOT_BLANK")
+    String deviceId;
 }
