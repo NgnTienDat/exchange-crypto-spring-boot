@@ -27,7 +27,9 @@ import java.util.List;
 public class SecurityConfig {
 
     private final String[] PUBLIC_ENDPOINTS_POST = {
-            "/auth/login", "/auth/introspect", "/auth/logout", "/auth/refresh", "/auth/send-otp", "/auth/verify-otp",
+            "/auth/login", "/auth/introspect", "/auth/logout",
+            "/auth/refresh", "/auth/send-otp", "/auth/verify-otp",
+            "auth/2fa/verify-code",
             "/api/users/", "/api/trade/**",
     };
 

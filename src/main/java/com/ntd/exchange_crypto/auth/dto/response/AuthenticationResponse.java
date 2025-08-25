@@ -5,6 +5,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.util.Set;
+
 @Getter
 @Setter
 @ToString
@@ -19,6 +21,7 @@ public class AuthenticationResponse {
     String token;
     String secretImageUri;
     String condition;
-    String message;
+    String userId;
+    Set<String> roles;
 }
 

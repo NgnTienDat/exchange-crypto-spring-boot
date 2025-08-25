@@ -99,6 +99,7 @@ public class AuthenticationService implements AuthenticationExternalAPI {
         if (!user.isTfaEnabled()) {
             String token = generateToken(user);
             return AuthenticationResponse.builder()
+                    .roles(user.getRoles())
                     .token(token)
                     .isAuthenticated(true)
                     .build();
@@ -106,7 +107,7 @@ public class AuthenticationService implements AuthenticationExternalAPI {
 
         if (!device.isVerified()) {
             return AuthenticationResponse.builder()
-                    .message(user.getId())
+                    .userId(user.getId())
                     .condition("2FA_REQUIRED")
                     .build();
         }
@@ -117,6 +118,7 @@ public class AuthenticationService implements AuthenticationExternalAPI {
                 .token(token)
                 .isAuthenticated(true)
                 .condition("SUCCESS")
+                .roles(user.getRoles())
                 .build();
     }
 
@@ -250,6 +252,8 @@ public class AuthenticationService implements AuthenticationExternalAPI {
         User user = authenticationRepository
                 .findById(verificationRequest.getUserId())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_EXISTS));
+
+        log.info("user: {}", user.getEmail());
 
         if (tfaService.isOtpNotValid(user.getSecret(), verificationRequest.getCode())) {
             throw new AuthException(AuthErrorCode.INVALID_CODE);

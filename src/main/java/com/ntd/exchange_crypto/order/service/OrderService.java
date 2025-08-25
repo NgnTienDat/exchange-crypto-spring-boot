@@ -4,6 +4,7 @@ package com.ntd.exchange_crypto.order.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ntd.exchange_crypto.asset.AssetExternalAPI;
+import com.ntd.exchange_crypto.common.PagedResponse;
 import com.ntd.exchange_crypto.order.OrderExternalAPI;
 import com.ntd.exchange_crypto.order.OrderInternalAPI;
 import com.ntd.exchange_crypto.order.dto.request.OrderCreationRequest;
@@ -27,6 +28,10 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -331,6 +336,32 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         if (orders == null) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
         return orders.stream().map(order -> orderMapper.toOrderResponse(order, pairId)).toList();
     }
+
+    @Override
+    public PagedResponse<OrderResponse> getUserOrders(String userId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        Page<Order> orderPage = orderRepository.findByUserId(userId, pageable);
+
+        if (orderPage.isEmpty()) {
+            throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        }
+
+        List<OrderResponse> content = orderPage.getContent()
+                .stream()
+                .map(orderMapper::toOrderResponse)
+                .toList();
+
+        return new PagedResponse<>(
+                content,
+                orderPage.getNumber(),
+                orderPage.getSize(),
+                orderPage.getTotalElements(),
+                orderPage.getTotalPages()
+        );
+    }
+
+
 
     @Override
     public List<OrderResponse> getOpenOrders(String pairId) {
