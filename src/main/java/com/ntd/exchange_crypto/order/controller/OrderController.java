@@ -1,6 +1,7 @@
 package com.ntd.exchange_crypto.order.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.ntd.exchange_crypto.common.PagedResponse;
 import com.ntd.exchange_crypto.common.dto.response.APIResponse;
 import com.ntd.exchange_crypto.order.OrderExternalAPI;
 import com.ntd.exchange_crypto.order.dto.request.OrderCreationRequest;
@@ -11,8 +12,10 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -45,7 +48,8 @@ public class OrderController {
     }
 
     @GetMapping("/{productId}")
-    public ResponseEntity<APIResponse<List<OrderResponse>>> getOrdersByPairId(@PathVariable("productId") String productId) {
+    public ResponseEntity<APIResponse<List<OrderResponse>>> getOrdersByPairId(
+            @PathVariable("productId") String productId) {
         log.info("Fetching orders for productId: {}", productId);
         List<OrderResponse> orders = orderService.getOrdersByPairId(productId);
         return ResponseEntity.status(HttpStatus.OK)
@@ -53,7 +57,8 @@ public class OrderController {
     }
 
     @GetMapping("/open/{productId}")
-    public ResponseEntity<APIResponse<List<OrderResponse>>> getOpenOrdersByPairId(@PathVariable("productId") String productId) {
+    public ResponseEntity<APIResponse<List<OrderResponse>>> getOpenOrdersByPairId(
+            @PathVariable("productId") String productId) {
         log.info("Fetching orders for productId: {}", productId);
         List<OrderResponse> orders = orderService.getOpenOrders(productId);
         return ResponseEntity.status(HttpStatus.OK)
@@ -61,18 +66,37 @@ public class OrderController {
     }
 
     @GetMapping("/history/{productId}")
-    public ResponseEntity<APIResponse<List<OrderResponse>>> getOrderHistoryByPairId(@PathVariable("productId") String productId) {
+    public ResponseEntity<APIResponse<List<OrderResponse>>> getOrderHistoryByPairId(
+            @PathVariable("productId") String productId) {
         log.info("Fetching orders for productId: {}", productId);
         List<OrderResponse> orders = orderService.getOrderHistory(productId);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(buildResponse(orders, "Fetched orders by pairId successfully", HttpStatus.OK));
     }
 
-    @GetMapping("/history")
-    public ResponseEntity<APIResponse<List<OrderResponse>>> getAllOrder() {
+    @GetMapping("/")
+    public ResponseEntity<APIResponse<List<OrderResponse>>> getAllMyOrders() {
 
         List<OrderResponse> orders = orderService.getAllMyOrders();
         return ResponseEntity.status(HttpStatus.OK)
                 .body(buildResponse(orders, "Fetched all orders successfully", HttpStatus.OK));
     }
+
+
+
+
+    @GetMapping("/user/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<APIResponse<PagedResponse<OrderResponse>>> getUserOrders(
+            @PathVariable("userId") String userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        PagedResponse<OrderResponse> orders = orderService.getUserOrders(userId, page, size);
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(buildResponse(orders, "Fetched user's orders successfully", HttpStatus.OK));
+    }
+
+
 }

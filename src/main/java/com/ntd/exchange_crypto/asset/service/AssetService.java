@@ -14,6 +14,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,6 +56,19 @@ public class AssetService implements AssetInternalAPI, AssetExternalAPI {
         Set<Asset> assets = this.assetRepository.findAllByUserId(user.getId());
         if (assets.isEmpty()) {
             log.warn("No assets found for user: {}", user.getId());
+            return List.of();
+        }
+        return assets.stream()
+                .map(assetMapper::toAssetResponse)
+                .toList();
+    }
+
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<AssetResponse> getUserAsset(String userId) {
+        Set<Asset> assets = this.assetRepository.findAllByUserId(userId);
+        if (assets.isEmpty()) {
+            log.warn("No assets found for user: {}", userId);
             return List.of();
         }
         return assets.stream()

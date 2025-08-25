@@ -44,7 +44,7 @@ public class AuthenticationController {
 
         AuthenticationResponse result = authenticationService.authenticate(authenticationRequest);
 
-        if (result.getCondition().equals("2FA_REQUIRED")) {
+        if (result.getCondition()!=null && result.getCondition().equals("2FA_REQUIRED")) {
             APIResponse<AuthenticationResponse> response = new APIResponse<>(
                     true,
                     HttpStatus.PROCESSING.value(),

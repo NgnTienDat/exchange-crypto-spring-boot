@@ -12,6 +12,7 @@ public interface AssetExternalAPI {
     BigDecimal getAvailableBalance(String cryptoId);
 
     List<AssetResponse> getMyAsset();
+    List<AssetResponse> getUserAsset(String userId);
 
     boolean hasSufficientBalance(String productId, BigDecimal amount);
 

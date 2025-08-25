@@ -1,6 +1,7 @@
 package com.ntd.exchange_crypto.user.service;
 
 
+import com.ntd.exchange_crypto.common.PagedResponse;
 import com.ntd.exchange_crypto.user.UserDTO;
 import com.ntd.exchange_crypto.user.UserExternalAPI;
 import com.ntd.exchange_crypto.user.UserInternalAPI;
@@ -17,7 +18,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -25,7 +27,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -54,7 +55,8 @@ public class UserService implements UserExternalAPI, UserInternalAPI {
     }
 
     @Override
-    @PostAuthorize("returnObject.email == authentication.name")
+//    @PostAuthorize("returnObject.email == authentication.name")
+    @PreAuthorize("hasRole('ADMIN')")
     public UserResponse getUserById(String id) {
         return userMapper.toUserResponse(userRepository.findById(id)
                 .orElseThrow(() -> new UserException(UserErrorCode.USER_NOTFOUND)));
@@ -62,12 +64,19 @@ public class UserService implements UserExternalAPI, UserInternalAPI {
 
     @Override
     @PreAuthorize("hasRole('ADMIN')")
-    public List<UserResponse> getAllUsers() {
-        return userRepository.findAll()
-                .stream()
-                .map(userMapper::toUserResponse)
-                .toList();
+    public PagedResponse<UserResponse> getAllUsers(Pageable pageable) {
+        Page<User> pageResult = userRepository.findAll(pageable);
+        return new PagedResponse<>(
+                pageResult.getContent().stream().map(userMapper::toUserResponse).toList(),
+                pageResult.getNumber(),
+                pageResult.getSize(),
+                pageResult.getTotalElements(),
+                pageResult.getTotalPages()
+        );
+
+
     }
+
 
     @Override
     public UserResponse getMyInfo() {
