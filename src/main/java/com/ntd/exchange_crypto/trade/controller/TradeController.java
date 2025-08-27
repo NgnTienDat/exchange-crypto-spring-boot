@@ -1,10 +1,16 @@
 package com.ntd.exchange_crypto.trade.controller;
 
+import com.ntd.exchange_crypto.common.SliceResponse;
 import com.ntd.exchange_crypto.common.dto.response.APIResponse;
+import com.ntd.exchange_crypto.order.dto.response.OrderResponse;
+import com.ntd.exchange_crypto.trade.TradeExternalApi;
+import com.ntd.exchange_crypto.trade.dto.response.TradeResponse;
+import com.ntd.exchange_crypto.trade.service.TradeService;
 import com.ntd.exchange_crypto.websocket.service.BinanceWebSocketService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -13,9 +19,11 @@ import org.springframework.web.bind.annotation.*;
 public class TradeController {
 
     private final BinanceWebSocketService binanceWebSocketService;
+    private final TradeExternalApi tradeService;
 
-    public TradeController(BinanceWebSocketService binanceWebSocketService) {
+    public TradeController(BinanceWebSocketService binanceWebSocketService, TradeExternalApi tradeService) {
         this.binanceWebSocketService = binanceWebSocketService;
+        this.tradeService = tradeService;
     }
 
     private <T> APIResponse<T> buildResponse(T result, String message, HttpStatus status) {
@@ -74,7 +82,16 @@ public class TradeController {
         }
     }
 
-
+    @GetMapping("/trades")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<APIResponse<SliceResponse<TradeResponse>>> getAllTrades(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        SliceResponse<TradeResponse> trades = tradeService.getAllTradesAdmin(page, size);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(buildResponse(trades, "Fetched all trades successfully", HttpStatus.OK));
+    }
 
 
 }

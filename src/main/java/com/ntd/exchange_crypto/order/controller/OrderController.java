@@ -6,6 +6,7 @@ import com.ntd.exchange_crypto.common.SliceResponse;
 import com.ntd.exchange_crypto.common.dto.response.APIResponse;
 import com.ntd.exchange_crypto.order.OrderExternalAPI;
 import com.ntd.exchange_crypto.order.dto.request.OrderCreationRequest;
+import com.ntd.exchange_crypto.order.dto.response.AdminOrderBookResponse;
 import com.ntd.exchange_crypto.order.dto.response.OrderResponse;
 import com.ntd.exchange_crypto.order.service.OrderService;
 import jakarta.validation.Valid;
@@ -126,5 +127,16 @@ public class OrderController {
                 .body(buildResponse(stats, "Fetched user's order stats successfully", HttpStatus.OK));
     }
 
+
+    @GetMapping("/admin/order-book")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<APIResponse<?>> getAdminOrderBook(
+            @RequestParam String pairId,
+            @RequestParam(defaultValue = "10") int limit
+    ) {
+        AdminOrderBookResponse orderBook = orderService.getAdminOrderBook(pairId, limit);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(buildResponse(orderBook, "Fetched admin order book successfully", HttpStatus.OK));
+    }
 
 }

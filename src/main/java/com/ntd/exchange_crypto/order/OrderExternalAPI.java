@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.ntd.exchange_crypto.common.PagedResponse;
 import com.ntd.exchange_crypto.common.SliceResponse;
 import com.ntd.exchange_crypto.order.dto.request.OrderCreationRequest;
+import com.ntd.exchange_crypto.order.dto.response.AdminOrderBookResponse;
 import com.ntd.exchange_crypto.order.dto.response.OrderResponse;
 import com.ntd.exchange_crypto.order.dto.response.OrderStatResponse;
 import com.ntd.exchange_crypto.order.enums.Side;
@@ -16,12 +17,27 @@ import java.util.List;
 
 public interface OrderExternalAPI {
     OrderResponse placeOrder(OrderCreationRequest orderCreationRequest);
+
     Order getOrderById(String orderId);
+
     List<OrderResponse> getOrdersByPairId(String pairId);
+
     PagedResponse<OrderResponse> getUserOrders(String userId, int page, int size);
+
     SliceResponse<OrderResponse> getOpenOrders(String pairId, int page, int size);
+
     SliceResponse<OrderResponse> getOrderHistory(String pairId, int page, int size);
+
     OrderStatResponse getOrderStats(String userId);
+
+    @PreAuthorize("hasRole('ADMIN')")
+    List<OrderResponse> getBidOrders(String getCryptoId, String giveCryptoId, int limit);
+
+    @PreAuthorize("hasRole('ADMIN')")
+    List<OrderResponse> getAskOrders(String getCryptoId, String giveCryptoId, int limit);
+
+    @PreAuthorize("hasRole('ADMIN')")
+    AdminOrderBookResponse getAdminOrderBook(String pairId, int limit);
 
     List<OrderResponse> getAllMyOrders();
 

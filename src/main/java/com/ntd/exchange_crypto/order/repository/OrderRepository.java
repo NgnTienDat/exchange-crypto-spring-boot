@@ -50,16 +50,44 @@ public interface OrderRepository extends JpaRepository<Order, String> {
 
 
     List<Order> findOrderByUserId(String userId);
+
     Page<Order> findByUserId(String userId, Pageable pageable);
 
+
     @Query(value = """
-        SELECT 
-            COUNT(*) AS totalOrder,
-            SUM(CASE WHEN status IN ('PENDING', 'NEW', 'PARTIALLY_FILLED') THEN 1 ELSE 0 END) AS activeOrder,
-            SUM(CASE WHEN status = 'FILLED' THEN 1 ELSE 0 END) AS completeTrades
-        FROM orders
-        WHERE user_id = :userId
-        """, nativeQuery = true)
+                SELECT * FROM orders o
+                WHERE ((o.get_crypto_id = ?1 AND o.give_crypto_id = ?2)
+                    OR (o.get_crypto_id = ?2 AND o.give_crypto_id = ?1))
+                  AND o.side = 'BID'
+                  AND o.status IN ('NEW', 'PARTIALLY_FILLED', 'PENDING')
+                ORDER BY o.price DESC, o.created_at ASC
+                LIMIT ?3
+            """, nativeQuery = true)
+    List<Order> findBidOrder(String crypto1, String crypto2, int limit);
+
+
+    @Query(value = """
+                SELECT * FROM orders o
+                WHERE ((o.get_crypto_id = ?1 AND o.give_crypto_id = ?2)
+                    OR (o.get_crypto_id = ?2 AND o.give_crypto_id = ?1))
+                  AND o.side = 'ASK'
+                  AND o.status IN ('NEW', 'PARTIALLY_FILLED', 'PENDING')
+                ORDER BY o.price ASC, o.created_at ASC
+                LIMIT ?3
+            """, nativeQuery = true)
+    List<Order> findAskOrder(String crypto1, String crypto2, int limit);
+
+
+
+
+    @Query(value = """
+            SELECT 
+                COUNT(*) AS totalOrder,
+                SUM(CASE WHEN status IN ('PENDING', 'NEW', 'PARTIALLY_FILLED') THEN 1 ELSE 0 END) AS activeOrder,
+                SUM(CASE WHEN status = 'FILLED' THEN 1 ELSE 0 END) AS completeTrades
+            FROM orders
+            WHERE user_id = :userId
+            """, nativeQuery = true)
     OrderStatProjection getOrderStats(String userId);
 
 }

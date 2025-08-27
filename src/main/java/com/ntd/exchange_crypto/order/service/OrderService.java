@@ -9,6 +9,7 @@ import com.ntd.exchange_crypto.common.SliceResponse;
 import com.ntd.exchange_crypto.order.OrderExternalAPI;
 import com.ntd.exchange_crypto.order.OrderInternalAPI;
 import com.ntd.exchange_crypto.order.dto.request.OrderCreationRequest;
+import com.ntd.exchange_crypto.order.dto.response.AdminOrderBookResponse;
 import com.ntd.exchange_crypto.order.dto.response.OrderResponse;
 import com.ntd.exchange_crypto.order.dto.response.OrderStatResponse;
 import com.ntd.exchange_crypto.order.enums.OrderStatus;
@@ -234,7 +235,6 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         order.setUpdatedAt(Instant.now());
 
 
-
         assetExternalAPI.unlockBalance(orderUpdate.getUserId(), orderUpdate.getGiveCryptoId(), amountToUnlock);
 
 
@@ -350,7 +350,10 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
         List<OrderResponse> content = orderPage.getContent()
                 .stream()
-                .map(orderMapper::toOrderResponse)
+                .map(order -> {
+                    String pairId = getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
+                    return orderMapper.toOrderResponse(order, pairId);
+                })
                 .toList();
 
         return new PagedResponse<>(
@@ -361,7 +364,6 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
                 orderPage.getTotalPages()
         );
     }
-
 
 
     @Override
@@ -398,7 +400,6 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         String userId = userDTO.getId();
 
 
-
         Slice<Order> orders = orderRepository
                 .findAllOrdersHistoryByPairAndAndUser(baseSymbol, quoteSymbol, userId, pageable);
 
@@ -421,6 +422,52 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
                 .totalOrder(projection.getTotalOrder())
                 .activeOrder(projection.getActiveOrder())
                 .completeTrades(projection.getCompleteTrades())
+                .build();
+    }
+
+    @Override
+    public List<OrderResponse> getBidOrders(String getCryptoId, String giveCryptoId, int limit) {
+        List<Order> orders = orderRepository.findBidOrder(getCryptoId, giveCryptoId, limit);
+        if (orders == null) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        return orders.stream().map(order -> {
+            String pairId = getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
+            return orderMapper.toOrderResponse(order, pairId);
+        }).toList();
+    }
+
+    @Override
+    public List<OrderResponse> getAskOrders(String getCryptoId, String giveCryptoId, int limit) {
+        List<Order> orders = orderRepository.findAskOrder(getCryptoId, giveCryptoId, limit);
+        if (orders == null) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        return orders.stream().map(order -> {
+            String pairId = getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
+            return orderMapper.toOrderResponse(order, pairId);
+        }).toList();
+    }
+
+    @Override
+    public AdminOrderBookResponse getAdminOrderBook(String pair, int limit) {
+        String baseSymbol = pair.split("-")[0];
+        String quoteSymbol = pair.split("-")[1];
+
+        List<Order> bidOrders = orderRepository.findBidOrder(baseSymbol, quoteSymbol, limit);
+        if (bidOrders.isEmpty()) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        List<OrderResponse> responseBid =  bidOrders.stream().map(order -> {
+            String pairId = getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
+            return orderMapper.toOrderResponse(order, pairId);
+        }).toList();
+
+
+        List<Order> askOrders = orderRepository.findAskOrder(baseSymbol, quoteSymbol, limit);
+        if (askOrders.isEmpty()) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        List<OrderResponse> responseAsk =  askOrders.stream().map(order -> {
+            String pairId = getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
+            return orderMapper.toOrderResponse(order, pairId);
+        }).toList();
+
+        return AdminOrderBookResponse.builder()
+                .ordersBid(responseBid)
+                .ordersAsk(responseAsk)
                 .build();
     }
 
