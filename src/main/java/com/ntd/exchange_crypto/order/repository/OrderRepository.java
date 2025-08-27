@@ -4,6 +4,7 @@ import com.ntd.exchange_crypto.order.dto.response.OrderResponse;
 import com.ntd.exchange_crypto.order.model.Order;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -27,10 +28,11 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             "    OR (o.getCryptoId = :crypto2 AND o.giveCryptoId = :crypto1)) " +
             "AND o.userId = :userId " +
             "AND o.status IN ('NEW', 'PENDING', 'PARTIALLY_FILLED')")
-    List<Order> findAllOpenOrdersByPairAndAndUser(
+    Slice<Order> findAllOpenOrdersByPairAndAndUser(
             String crypto1,
             String crypto2,
-            String userId
+            String userId,
+            Pageable pageable
     );
 
 
@@ -39,14 +41,25 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             "    OR (o.getCryptoId = :crypto2 AND o.giveCryptoId = :crypto1)) " +
             "AND o.userId = :userId " +
             "AND o.status IN ('CANCELED', 'EXPIRED', 'FILLED')")
-    List<Order> findAllOrdersHistoryByPairAndAndUser(
+    Slice<Order> findAllOrdersHistoryByPairAndAndUser(
             String crypto1,
             String crypto2,
-            String userId
+            String userId,
+            Pageable pageable
     );
 
 
     List<Order> findOrderByUserId(String userId);
     Page<Order> findByUserId(String userId, Pageable pageable);
+
+    @Query(value = """
+        SELECT 
+            COUNT(*) AS totalOrder,
+            SUM(CASE WHEN status IN ('PENDING', 'NEW', 'PARTIALLY_FILLED') THEN 1 ELSE 0 END) AS activeOrder,
+            SUM(CASE WHEN status = 'FILLED' THEN 1 ELSE 0 END) AS completeTrades
+        FROM orders
+        WHERE user_id = :userId
+        """, nativeQuery = true)
+    OrderStatProjection getOrderStats(String userId);
 
 }

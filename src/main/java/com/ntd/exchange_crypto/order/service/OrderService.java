@@ -5,10 +5,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ntd.exchange_crypto.asset.AssetExternalAPI;
 import com.ntd.exchange_crypto.common.PagedResponse;
+import com.ntd.exchange_crypto.common.SliceResponse;
 import com.ntd.exchange_crypto.order.OrderExternalAPI;
 import com.ntd.exchange_crypto.order.OrderInternalAPI;
 import com.ntd.exchange_crypto.order.dto.request.OrderCreationRequest;
 import com.ntd.exchange_crypto.order.dto.response.OrderResponse;
+import com.ntd.exchange_crypto.order.dto.response.OrderStatResponse;
 import com.ntd.exchange_crypto.order.enums.OrderStatus;
 import com.ntd.exchange_crypto.order.enums.OrderType;
 import com.ntd.exchange_crypto.order.enums.Side;
@@ -18,6 +20,7 @@ import com.ntd.exchange_crypto.order.exception.OrderException;
 import com.ntd.exchange_crypto.order.mapper.OrderMapper;
 import com.ntd.exchange_crypto.order.model.Order;
 import com.ntd.exchange_crypto.order.repository.OrderRepository;
+import com.ntd.exchange_crypto.order.repository.OrderStatProjection;
 import com.ntd.exchange_crypto.trade.OrderBookStatsService;
 import com.ntd.exchange_crypto.trade.model.OrderBookStats;
 import com.ntd.exchange_crypto.user.UserDTO;
@@ -28,11 +31,9 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationAdapter;
@@ -364,29 +365,63 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
 
 
     @Override
-    public List<OrderResponse> getOpenOrders(String pairId) {
+    public SliceResponse<OrderResponse> getOpenOrders(String pairId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         String baseSymbol = pairId.split("-")[0];
         String quoteSymbol = pairId.split("-")[1];
 
         UserDTO userDTO = userExternalAPI.getUserLogin();
         String userId = userDTO.getId();
 
-        List<Order> orders = orderRepository.findAllOpenOrdersByPairAndAndUser(baseSymbol, quoteSymbol, userId);
-        if (orders == null) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
-        return orders.stream().map(order -> orderMapper.toOrderResponse(order, pairId)).toList();
+        Slice<Order> orders = orderRepository
+                .findAllOpenOrdersByPairAndAndUser(baseSymbol, quoteSymbol, userId, pageable);
+
+        if (orders == null || !orders.hasContent()) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+
+        return new SliceResponse<>(
+                orders.getContent().stream()
+                        .map(order -> orderMapper.toOrderResponse(order, pairId))
+                        .toList(),
+                orders.getNumber(),
+                orders.getSize(),
+                orders.hasNext()
+        );
     }
 
     @Override
-    public List<OrderResponse> getOrderHistory(String pairId) {
+    public SliceResponse<OrderResponse> getOrderHistory(String pairId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         String baseSymbol = pairId.split("-")[0];
         String quoteSymbol = pairId.split("-")[1];
 
         UserDTO userDTO = userExternalAPI.getUserLogin();
         String userId = userDTO.getId();
 
-        List<Order> orders = orderRepository.findAllOrdersHistoryByPairAndAndUser(baseSymbol, quoteSymbol, userId);
-        if (orders == null) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
-        return orders.stream().map(order -> orderMapper.toOrderResponse(order, pairId)).toList();
+
+
+        Slice<Order> orders = orderRepository
+                .findAllOrdersHistoryByPairAndAndUser(baseSymbol, quoteSymbol, userId, pageable);
+
+        if (orders == null || !orders.hasContent()) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+
+        return new SliceResponse<>(
+                orders.getContent().stream()
+                        .map(order -> orderMapper.toOrderResponse(order, pairId))
+                        .toList(),
+                orders.getNumber(),
+                orders.getSize(),
+                orders.hasNext()
+        );
+    }
+
+    @Override
+    public OrderStatResponse getOrderStats(String userId) {
+        OrderStatProjection projection = orderRepository.getOrderStats(userId);
+        return OrderStatResponse.builder()
+                .totalOrder(projection.getTotalOrder())
+                .activeOrder(projection.getActiveOrder())
+                .completeTrades(projection.getCompleteTrades())
+                .build();
     }
 
     @Override
@@ -410,6 +445,34 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
                     .filledQuantity(order.getFilledQuantity())
                     .build();
         }).toList();
+    }
+
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    public PagedResponse<OrderResponse> getAllOrders(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        Page<Order> orderPage = orderRepository.findAll(pageable);
+        if (orderPage.isEmpty()) {
+            throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        }
+
+
+        List<OrderResponse> content = orderPage.getContent()
+                .stream()
+                .map(order -> {
+                    String pairId = getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
+                    return orderMapper.toOrderResponse(order, pairId);
+                }).toList();
+
+        return new PagedResponse<>(
+                content,
+                orderPage.getNumber(),
+                orderPage.getSize(),
+                orderPage.getTotalElements(),
+                orderPage.getTotalPages()
+        );
+
     }
 
     @Override

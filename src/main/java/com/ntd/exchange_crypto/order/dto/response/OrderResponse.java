@@ -15,6 +15,7 @@ import java.util.UUID;
 public class OrderResponse {
     String id;
     String pairId;
+    String userId;
     String side;
     String type;
     String status;

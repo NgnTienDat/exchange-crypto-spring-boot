@@ -6,6 +6,7 @@ import com.ntd.exchange_crypto.user.UserDTO;
 import com.ntd.exchange_crypto.user.UserExternalAPI;
 import com.ntd.exchange_crypto.user.UserInternalAPI;
 import com.ntd.exchange_crypto.user.dto.request.UserCreationRequest;
+import com.ntd.exchange_crypto.user.dto.request.UserUpdateRequest;
 import com.ntd.exchange_crypto.user.dto.response.UserResponse;
 import com.ntd.exchange_crypto.user.enums.Role;
 import com.ntd.exchange_crypto.user.exception.UserErrorCode;
@@ -101,6 +102,21 @@ public class UserService implements UserExternalAPI, UserInternalAPI {
         return UserDTO.builder().id(user.getId()).email(user.getEmail()).build();
     }
 
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteUser(String id) {
+        User user = userRepository.findById(id).orElseThrow(() -> new UserException(UserErrorCode.USER_NOTFOUND));
+        userRepository.deleteById(id);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @Override
+    public UserResponse lockAndUnlockUser(UserUpdateRequest userUpdateRequest) {
+        User user = userRepository.findById(userUpdateRequest.getUserId()).orElseThrow(() -> new UserException(UserErrorCode.USER_NOTFOUND));
+        user.setActive(userUpdateRequest.isActive());
+        userRepository.save(user);
+        return userMapper.toUserResponse(user);
+    }
 
 
     @Override
