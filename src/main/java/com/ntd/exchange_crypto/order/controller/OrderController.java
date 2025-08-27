@@ -2,6 +2,7 @@ package com.ntd.exchange_crypto.order.controller;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.ntd.exchange_crypto.common.PagedResponse;
+import com.ntd.exchange_crypto.common.SliceResponse;
 import com.ntd.exchange_crypto.common.dto.response.APIResponse;
 import com.ntd.exchange_crypto.order.OrderExternalAPI;
 import com.ntd.exchange_crypto.order.dto.request.OrderCreationRequest;
@@ -57,19 +58,25 @@ public class OrderController {
     }
 
     @GetMapping("/open/{productId}")
-    public ResponseEntity<APIResponse<List<OrderResponse>>> getOpenOrdersByPairId(
-            @PathVariable("productId") String productId) {
+    public ResponseEntity<APIResponse<SliceResponse<OrderResponse>>> getOpenOrdersByPairId(
+            @PathVariable("productId") String productId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
         log.info("Fetching orders for productId: {}", productId);
-        List<OrderResponse> orders = orderService.getOpenOrders(productId);
+        SliceResponse<OrderResponse> orders = orderService.getOpenOrders(productId, page, size);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(buildResponse(orders, "Fetched orders by pairId successfully", HttpStatus.OK));
     }
 
     @GetMapping("/history/{productId}")
-    public ResponseEntity<APIResponse<List<OrderResponse>>> getOrderHistoryByPairId(
-            @PathVariable("productId") String productId) {
+    public ResponseEntity<APIResponse<SliceResponse<OrderResponse>>> getOrderHistoryByPairId(
+            @PathVariable("productId") String productId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
         log.info("Fetching orders for productId: {}", productId);
-        List<OrderResponse> orders = orderService.getOrderHistory(productId);
+        SliceResponse<OrderResponse> orders = orderService.getOrderHistory(productId, page, size);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(buildResponse(orders, "Fetched orders by pairId successfully", HttpStatus.OK));
     }
@@ -83,6 +90,18 @@ public class OrderController {
     }
 
 
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<APIResponse<PagedResponse<OrderResponse>>> getAllOrders(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+
+        PagedResponse<OrderResponse> orders = orderService.getAllOrders(page, size);
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(buildResponse(orders, "Fetched all orders successfully", HttpStatus.OK));
+    }
 
 
     @GetMapping("/user/{userId}")
@@ -96,6 +115,15 @@ public class OrderController {
 
         return ResponseEntity.status(HttpStatus.OK)
                 .body(buildResponse(orders, "Fetched user's orders successfully", HttpStatus.OK));
+    }
+
+    @GetMapping("/stats/{userId}")
+    public ResponseEntity<APIResponse<?>> getOrderStats(
+            @PathVariable("userId") String userId
+    ) {
+        var stats = orderService.getOrderStats(userId);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(buildResponse(stats, "Fetched user's order stats successfully", HttpStatus.OK));
     }
 
 

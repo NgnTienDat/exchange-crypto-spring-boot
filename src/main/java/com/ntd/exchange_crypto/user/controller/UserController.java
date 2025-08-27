@@ -4,6 +4,7 @@ import com.ntd.exchange_crypto.common.PagedResponse;
 import com.ntd.exchange_crypto.common.dto.response.APIResponse;
 import com.ntd.exchange_crypto.user.UserExternalAPI;
 import com.ntd.exchange_crypto.user.dto.request.UserCreationRequest;
+import com.ntd.exchange_crypto.user.dto.request.UserUpdateRequest;
 import com.ntd.exchange_crypto.user.dto.response.UserResponse;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -52,12 +53,6 @@ public class UserController {
                 "User data retrieved successfully", HttpStatus.OK));
     }
 
-//    @GetMapping("/")
-//    @PreAuthorize("hasRole('ADMIN')")
-//    public ResponseEntity<APIResponse<List<UserResponse>>> getAllUsers() {
-//        return ResponseEntity.ok(buildResponse(userExternalAPI.getAllUsers(),
-//                "Users data retrieved successfully", HttpStatus.OK));
-//    }
 
     @GetMapping("/")
     @PreAuthorize("hasRole('ADMIN')")
@@ -73,6 +68,13 @@ public class UserController {
         ));
     }
 
+    @DeleteMapping("/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<APIResponse<Void>> deleteUser(@PathVariable("userId") String userId) {
+        userExternalAPI.deleteUser(userId);
+        return ResponseEntity.ok(buildResponse(null, "User deleted successfully", HttpStatus.OK));
+    }
+
 
 
     @GetMapping("/my-info")
@@ -80,4 +82,13 @@ public class UserController {
         return ResponseEntity.ok(buildResponse(userExternalAPI.getMyInfo(),
                 "My Information", HttpStatus.OK));
     }
+
+
+    @PatchMapping("/lock")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<APIResponse<UserResponse>> lockUser(@RequestBody UserUpdateRequest userUpdateRequest) {
+        UserResponse userResponse = userExternalAPI.lockAndUnlockUser(userUpdateRequest);
+        return ResponseEntity.ok(buildResponse(userResponse, "User locked successfully", HttpStatus.OK));
+    }
+
 }
