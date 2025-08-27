@@ -2,8 +2,6 @@ package com.ntd.exchange_crypto.trade.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ntd.exchange_crypto.asset.AssetExternalAPI;
-import com.ntd.exchange_crypto.market.OrderBookData;
 import com.ntd.exchange_crypto.order.OrderDTO;
 import com.ntd.exchange_crypto.order.OrderExternalAPI;
 import com.ntd.exchange_crypto.order.OrderReceivedEvent;
@@ -19,14 +17,12 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -44,7 +40,6 @@ public class MatchEngine {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
-    private final OrderMapper orderMapper;
 
     public MatchEngine(TradeService tradeService,
                        OrderBookStatsService orderBookStatsService,
@@ -57,7 +52,6 @@ public class MatchEngine {
         this.eventPublisher = eventPublisher;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
-        this.orderMapper = orderMapper;
 
     }
 
