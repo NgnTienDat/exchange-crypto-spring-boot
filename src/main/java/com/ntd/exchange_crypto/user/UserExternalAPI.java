@@ -26,4 +26,6 @@ public interface UserExternalAPI {
     @PreAuthorize("hasRole('ADMIN')")
     UserResponse lockAndUnlockUser(UserUpdateRequest userUpdateRequest);
 
+    Long countTotalUsers();
+
 }

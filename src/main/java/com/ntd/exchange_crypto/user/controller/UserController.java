@@ -91,4 +91,10 @@ public class UserController {
         return ResponseEntity.ok(buildResponse(userResponse, "User locked successfully", HttpStatus.OK));
     }
 
+    @GetMapping("/count")
+    public ResponseEntity<APIResponse<Long>> countTotalUsers() {
+        Long totalUsers = userExternalAPI.countTotalUsers();
+        return ResponseEntity.ok(buildResponse(totalUsers, "Total users counted successfully", HttpStatus.OK));
+    }
+
 }

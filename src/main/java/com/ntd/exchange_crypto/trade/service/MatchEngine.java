@@ -356,6 +356,20 @@ public class MatchEngine {
                 order.setStatus(OrderStatus.PENDING);
                 orderExternalAPI.updateOrderStatus(order, BigDecimal.ZERO, BigDecimal.ZERO);
                 log.info("🔥 Order {} đã được đặt trạng thái PENDING", order.getId());
+                OrderDTO orderSendToAdmin = OrderDTO.builder()
+                        .id(order.getId())
+                        .userId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d")
+                        .pairId(orderExternalAPI.getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId()))
+                        .side(order.getSide().name())
+                        .type(order.getType().name())
+                        .quantity(order.getQuantity())
+                        .price(order.getPrice())
+                        .status(order.getStatus().name())
+                        .filledQuantity(order.getFilledQuantity())
+                        .build();
+
+                // send to admin
+                eventPublisher.publishEvent(new OrderReceivedEvent(orderSendToAdmin));
             }
 
 
@@ -547,9 +561,22 @@ public class MatchEngine {
                     .filledQuantity(makerOrder.getFilledQuantity())
                     .build();
 
+
+
             // Bắn event cập nhật trạng thái của cả taker & maker
+            // send to user
             eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
             eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoMaker));
+
+
+            // send to admin
+            orderDtoMaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
+            orderDtoTaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
+
+            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
+            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoMaker));
+
+
 
             // ==================== 5. Giảm remainingQty của taker ====================
             remainingTakerQty = remainingTakerQty.subtract(matchQuantity);
@@ -602,6 +629,10 @@ public class MatchEngine {
                 .status(takerOrder.getStatus().name())
                 .filledQuantity(takerOrder.getFilledQuantity())
                 .build();
+        eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
+
+        orderDtoTaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
+
         eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
 
     }

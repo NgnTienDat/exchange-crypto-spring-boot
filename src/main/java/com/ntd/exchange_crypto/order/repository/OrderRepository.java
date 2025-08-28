@@ -1,6 +1,7 @@
 package com.ntd.exchange_crypto.order.repository;
 
 import com.ntd.exchange_crypto.order.dto.response.OrderResponse;
+import com.ntd.exchange_crypto.order.enums.OrderStatus;
 import com.ntd.exchange_crypto.order.model.Order;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -9,6 +10,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 
 @Repository
@@ -90,4 +92,30 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             """, nativeQuery = true)
     OrderStatProjection getOrderStats(String userId);
 
+
+    // Basic date range queries
+    List<Order> findByCreatedAtBetween(Instant startDate, Instant endDate);
+
+    List<Order> findByCreatedAtBetweenAndStatus(Instant startDate, Instant endDate, OrderStatus status);
+
+    List<Order> findByCreatedAtBetweenAndUserId(Instant startDate, Instant endDate, String userId);
+
+    // Custom queries for better performance with large datasets
+    @Query("SELECT o FROM Order o WHERE DATE(o.createdAt) = CURRENT_DATE")
+    List<Order> findTodayOrders();
+
+    @Query("SELECT o FROM Order o WHERE YEAR(o.createdAt) = :year AND MONTH(o.createdAt) = :month")
+    List<Order> findByYearAndMonth(int year, int month);
+
+    @Query("SELECT o FROM Order o WHERE YEAR(o.createdAt) = :year")
+    List<Order> findByYear(int year);
+
+    // Statistics queries for better performance
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.createdAt BETWEEN :startDate AND :endDate")
+    long countOrdersBetweenDates(Instant startDate,Instant endDate);
+
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.createdAt BETWEEN :startDate AND :endDate AND o.status = :status")
+    long countOrdersByStatusBetweenDates(Instant startDate,
+                                          Instant endDate,
+                                         OrderStatus status);
 }
