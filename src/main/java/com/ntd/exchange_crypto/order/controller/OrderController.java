@@ -9,6 +9,7 @@ import com.ntd.exchange_crypto.order.dto.request.OrderCreationRequest;
 import com.ntd.exchange_crypto.order.dto.response.AdminOrderBookResponse;
 import com.ntd.exchange_crypto.order.dto.response.OrderResponse;
 import com.ntd.exchange_crypto.order.service.OrderService;
+import com.ntd.exchange_crypto.order.service.OrderStatisticsService;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ import java.util.List;
 public class OrderController {
 
     OrderExternalAPI orderService;
+    OrderStatisticsService orderStatisticsService;
 
     private <T> APIResponse<T> buildResponse(T result, String message, HttpStatus status) {
         return APIResponse.<T>builder()
@@ -132,11 +134,49 @@ public class OrderController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<APIResponse<?>> getAdminOrderBook(
             @RequestParam String pairId,
+            @RequestParam String side,
             @RequestParam(defaultValue = "10") int limit
     ) {
-        AdminOrderBookResponse orderBook = orderService.getAdminOrderBook(pairId, limit);
+        AdminOrderBookResponse orderBook = orderService.getAdminOrderBook(pairId, side, limit);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(buildResponse(orderBook, "Fetched admin order book successfully", HttpStatus.OK));
     }
+
+
+    @GetMapping("/admin/stats/today/count")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<APIResponse<Long>> getTodayOrderCount() {
+        Long count = orderStatisticsService.countTodayOrders();
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(buildResponse(count, "Fetched today's order count successfully", HttpStatus.OK));
+    }
+
+    @GetMapping("/admin/stats/month/count")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<APIResponse<Long>> getMonthOrderCount(
+            @RequestParam int month,
+            @RequestParam int year
+    ) {
+
+        log.info("Fetching order count for month: {} and year: {}", month, year);
+        Long count = orderStatisticsService.countOrdersByMonth(month, year);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(buildResponse(count, "Fetched this month's order count successfully", HttpStatus.OK));
+    }
+
+
+    @GetMapping("/admin/stats/year/count")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<APIResponse<Long>> getYearOrderCount(
+            @RequestParam int year
+    ) {
+        Long count = orderStatisticsService.countOrdersByYear(year);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(buildResponse(count, "Fetched this month's order count successfully", HttpStatus.OK));
+    }
+
+
+
+
 
 }

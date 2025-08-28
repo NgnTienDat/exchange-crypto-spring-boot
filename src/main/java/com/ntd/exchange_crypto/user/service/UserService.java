@@ -118,6 +118,11 @@ public class UserService implements UserExternalAPI, UserInternalAPI {
         return userMapper.toUserResponse(user);
     }
 
+    @Override
+    public Long countTotalUsers() {
+        return userRepository.countTotalUsers();
+    }
+
 
     @Override
     public void saveUser(User user) {

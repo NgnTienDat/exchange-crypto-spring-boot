@@ -6,8 +6,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ntd.exchange_crypto.asset.AssetExternalAPI;
 import com.ntd.exchange_crypto.common.PagedResponse;
 import com.ntd.exchange_crypto.common.SliceResponse;
+import com.ntd.exchange_crypto.order.OrderDTO;
 import com.ntd.exchange_crypto.order.OrderExternalAPI;
 import com.ntd.exchange_crypto.order.OrderInternalAPI;
+import com.ntd.exchange_crypto.order.OrderReceivedEvent;
 import com.ntd.exchange_crypto.order.dto.request.OrderCreationRequest;
 import com.ntd.exchange_crypto.order.dto.response.AdminOrderBookResponse;
 import com.ntd.exchange_crypto.order.dto.response.OrderResponse;
@@ -56,7 +58,7 @@ import java.util.Set;
 public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     RedisTemplate<String, Object> redisTemplate;
     ObjectMapper objectMapper;
-    ApplicationEventPublisher applicationEventPublisher;
+    ApplicationEventPublisher eventPublisher;
     UserExternalAPI userExternalAPI;
     OrderRepository orderRepository;
     AssetExternalAPI assetExternalAPI;
@@ -150,6 +152,19 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
             log.error("Error placing order: {}", e.getMessage(), e);
             assetExternalAPI.unlockBalance(order.getUserId(), order.getGiveCryptoId(), amountToLock);
         }
+
+//        OrderDTO orderDtoMaker = OrderDTO.builder()
+//                .id(order.getId())
+//                .userId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d")
+//                .pairId(getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId()))
+//                .side(order.getSide().name())
+//                .type(order.getType().name())
+//                .quantity(order.getQuantity())
+//                .price(order.getPrice())
+//                .status(order.getStatus().name())
+//                .filledQuantity(order.getFilledQuantity())
+//                .build();
+//        eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoMaker));
 
         return OrderResponse.builder()
                 .id(order.getId())
@@ -446,28 +461,30 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
     }
 
     @Override
-    public AdminOrderBookResponse getAdminOrderBook(String pair, int limit) {
+    public AdminOrderBookResponse getAdminOrderBook(String pair, String side, int limit) {
         String baseSymbol = pair.split("-")[0];
         String quoteSymbol = pair.split("-")[1];
 
-        List<Order> bidOrders = orderRepository.findBidOrder(baseSymbol, quoteSymbol, limit);
-        if (bidOrders.isEmpty()) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
-        List<OrderResponse> responseBid =  bidOrders.stream().map(order -> {
+        List<Order> orders;
+        if (side.equalsIgnoreCase("bid")) {
+            orders = orderRepository.findBidOrder(baseSymbol, quoteSymbol, limit);
+
+        } else {
+            orders = orderRepository.findAskOrder(baseSymbol, quoteSymbol, limit);
+        }
+
+
+        if (orders.isEmpty()) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        List<OrderResponse> response = orders.stream().map(order -> {
             String pairId = getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
             return orderMapper.toOrderResponse(order, pairId);
         }).toList();
 
 
-        List<Order> askOrders = orderRepository.findAskOrder(baseSymbol, quoteSymbol, limit);
-        if (askOrders.isEmpty()) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
-        List<OrderResponse> responseAsk =  askOrders.stream().map(order -> {
-            String pairId = getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
-            return orderMapper.toOrderResponse(order, pairId);
-        }).toList();
+
 
         return AdminOrderBookResponse.builder()
-                .ordersBid(responseBid)
-                .ordersAsk(responseAsk)
+                .orders(response)
                 .build();
     }
 

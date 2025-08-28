@@ -37,7 +37,7 @@ public interface OrderExternalAPI {
     List<OrderResponse> getAskOrders(String getCryptoId, String giveCryptoId, int limit);
 
     @PreAuthorize("hasRole('ADMIN')")
-    AdminOrderBookResponse getAdminOrderBook(String pairId, int limit);
+    AdminOrderBookResponse getAdminOrderBook(String pairId, String side, int limit);
 
     List<OrderResponse> getAllMyOrders();
 
