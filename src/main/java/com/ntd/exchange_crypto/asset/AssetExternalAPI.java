@@ -22,4 +22,5 @@ public interface AssetExternalAPI {
 
     void updateAsset(String userId, String cryptoId, BigDecimal amount, String side);
 
+    AssetResponse createNewAsset(String productId, BigDecimal newBalance);
 }

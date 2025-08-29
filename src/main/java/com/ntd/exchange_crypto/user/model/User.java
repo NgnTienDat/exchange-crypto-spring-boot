@@ -24,7 +24,6 @@ public class User {
     @Column(nullable = false, unique = true)
     String email;
 
-    @Column(nullable = false)
     String password;
 
     @Column(name = "full_name")

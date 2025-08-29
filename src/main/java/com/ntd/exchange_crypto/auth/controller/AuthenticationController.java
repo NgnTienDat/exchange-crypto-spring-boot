@@ -32,6 +32,16 @@ public class AuthenticationController {
     AuthenticationService authenticationService;
     MailServiceExternalApi mailService;
 
+
+    private <T> APIResponse<T> buildResponse(T result, String message, HttpStatus status) {
+        return APIResponse.<T>builder()
+                .success(true)
+                .code(status.value())
+                .message(message)
+                .result(result)
+                .build();
+    }
+
     // login
     @PostMapping("/login")
     public ResponseEntity<APIResponse<?>> authenticate(
@@ -175,6 +185,17 @@ public class AuthenticationController {
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
     }
+
+    @PostMapping("/outbound/authentication")
+    public ResponseEntity<APIResponse<AuthenticationResponse>> externalAuthenticate(
+            @RequestParam("code") String code
+    ){
+        var result = authenticationService.outboundAuthenticate(code);
+        return ResponseEntity.ok(
+                buildResponse(result, "Outbound authentication successful", HttpStatus.OK)
+        );
+    }
+
 
 
 }

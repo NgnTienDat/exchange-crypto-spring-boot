@@ -16,7 +16,10 @@ import com.ntd.exchange_crypto.auth.model.InvalidatedToken;
 import com.ntd.exchange_crypto.auth.model.TrustedDevice;
 import com.ntd.exchange_crypto.auth.repository.AuthenticationRepository;
 import com.ntd.exchange_crypto.auth.repository.InvalidatedTokenRepository;
+import com.ntd.exchange_crypto.auth.repository.httpClient.OutboundIdentityClient;
 import com.ntd.exchange_crypto.auth.repository.TrustedDeviceRepository;
+import com.ntd.exchange_crypto.auth.repository.httpClient.OutboundUserClient;
+import com.ntd.exchange_crypto.user.enums.Role;
 import com.ntd.exchange_crypto.user.model.User;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;
@@ -36,6 +39,7 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.StringJoiner;
 import java.util.UUID;
 
@@ -49,6 +53,8 @@ public class AuthenticationService implements AuthenticationExternalAPI {
     private final InvalidatedTokenRepository tokenRepository;
     private final TwoFactorAuthenticationService tfaService;
     private final TrustedDeviceRepository trustedDeviceRepository;
+    private final OutboundIdentityClient outboundIdentityClient;
+    private final OutboundUserClient outboundUserClient;
 
     @NonFinal
     @Value("${auth.signer-key}")
@@ -63,13 +69,29 @@ public class AuthenticationService implements AuthenticationExternalAPI {
     protected long REFRESH_DURATION;
 
 
+    @NonFinal
+    @Value("${external.api.identity.client-id}")
+    protected String CLIENT_ID;
+
+    @NonFinal
+    @Value("${external.api.identity.client-secret}")
+    protected String CLIENT_SECRET;
+
+    @NonFinal
+    @Value("${external.api.identity.redirect-uri}")
+    protected String REDIRECT_URI;
+
+    @NonFinal
+    protected String GRANT_TYPE = "authorization_code";
+
+
     /**
      * Login:
      * -> Check user is enabled 2FA or not
-     *      -> if not enabled, return token
+     * -> if not enabled, return token
      * -> if enabled, check if device is trusted (verified == true) -> return token
      * -> if not trusted, user enter code from authenticator app -> verify code -> return token
-     * */
+     */
 
     @Override
     public AuthenticationResponse authenticate(AuthenticationRequest authenticationRequest) {
@@ -121,6 +143,44 @@ public class AuthenticationService implements AuthenticationExternalAPI {
                 .roles(user.getRoles())
                 .build();
     }
+
+
+    @Override
+    public AuthenticationResponse outboundAuthenticate(String code) {
+
+        var response = outboundIdentityClient.exchangeToken(ExchangeTokenRequest.builder()
+                .code(code)
+                .clientId(CLIENT_ID)
+                .clientSecret(CLIENT_SECRET)
+                .redirectUri(REDIRECT_URI)
+                .grantType(GRANT_TYPE)
+                .build());
+
+        log.info("Google token response {}", response);
+
+        var userInfo = outboundUserClient.getUserInfo("json", response.getAccessToken());
+
+        log.info("User info: {}", userInfo);
+
+        HashSet<String> roles = new HashSet<>();
+        roles.add(Role.USER.name());
+
+        User user = authenticationRepository
+                .findByEmail(userInfo.getEmail())
+                .orElseGet(() ->
+                        authenticationRepository.save(User.builder()
+                                .email(userInfo.getEmail())
+                                .fullName(userInfo.getName())
+                                .avatar(userInfo.getPicture())
+                                .roles(roles)
+                                .build())
+                );
+
+        String token = generateToken(user);
+
+        return AuthenticationResponse.builder().token(token).build();
+    }
+
 
     @Override
     public TFAResponse enableTwoFactorAuthentication() {

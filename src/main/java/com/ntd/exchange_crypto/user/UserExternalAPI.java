@@ -1,6 +1,7 @@
 package com.ntd.exchange_crypto.user;
 
 import com.ntd.exchange_crypto.common.PagedResponse;
+import com.ntd.exchange_crypto.user.dto.request.PasswordCreationRequest;
 import com.ntd.exchange_crypto.user.dto.request.UserCreationRequest;
 import com.ntd.exchange_crypto.user.dto.request.UserUpdateRequest;
 import com.ntd.exchange_crypto.user.dto.response.UserResponse;
@@ -9,6 +10,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 public interface UserExternalAPI {
     UserResponse createUser(UserCreationRequest userCreationRequest);
+
+    void createPassword(PasswordCreationRequest passwordCreationRequest);
 
 //    @PreAuthorize("hasRole('ADMIN')")
     UserResponse getUserById(String id);

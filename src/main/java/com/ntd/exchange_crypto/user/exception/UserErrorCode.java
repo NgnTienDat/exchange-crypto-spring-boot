@@ -15,6 +15,7 @@ public enum UserErrorCode {
     USER_ALREADY_EXISTS(1007, "User already exists", HttpStatus.CONFLICT),
     UNAUTHENTICATED(2001, "Unauthenticated", HttpStatus.UNAUTHORIZED),
     UNAUTHORIZED(2003, "You dont have permission", HttpStatus.FORBIDDEN),
+    PASSWORD_EXISTED(2004, "Password existed", HttpStatus.BAD_REQUEST),
     ;
 
     private int code;

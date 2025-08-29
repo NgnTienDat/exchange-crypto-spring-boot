@@ -1,10 +1,12 @@
 package com.ntd.exchange_crypto.user.service;
 
 
+import com.ntd.exchange_crypto.asset.AssetExternalAPI;
 import com.ntd.exchange_crypto.common.PagedResponse;
 import com.ntd.exchange_crypto.user.UserDTO;
 import com.ntd.exchange_crypto.user.UserExternalAPI;
 import com.ntd.exchange_crypto.user.UserInternalAPI;
+import com.ntd.exchange_crypto.user.dto.request.PasswordCreationRequest;
 import com.ntd.exchange_crypto.user.dto.request.UserCreationRequest;
 import com.ntd.exchange_crypto.user.dto.request.UserUpdateRequest;
 import com.ntd.exchange_crypto.user.dto.response.UserResponse;
@@ -26,6 +28,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.HashSet;
 
@@ -49,10 +52,32 @@ public class UserService implements UserExternalAPI, UserInternalAPI {
             user.setRoles(roles);
             userRepository.save(user);
 
+
+
+
         } catch (DataIntegrityViolationException e) {
             throw new UserException(UserErrorCode.USER_ALREADY_EXISTS);
         }
         return userMapper.toUserResponse(user);
+    }
+
+    @Override
+    public void createPassword(PasswordCreationRequest passwordCreationRequest) {
+        var context = SecurityContextHolder.getContext();
+        String email = context.getAuthentication().getName();
+
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new UserException(UserErrorCode.USER_NOTFOUND);
+        }
+
+        if (StringUtils.hasText(user.getPassword())) {
+            throw new UserException(UserErrorCode.PASSWORD_EXISTED);
+        }
+        user.setPassword(passwordCreationRequest.getPassword());
+        userRepository.save(user);
+
+
     }
 
     @Override
@@ -87,7 +112,11 @@ public class UserService implements UserExternalAPI, UserInternalAPI {
         if (user == null) {
             throw new UserException(UserErrorCode.USER_NOTFOUND);
         }
-        return userMapper.toUserResponse(user);
+
+        UserResponse userResponse = userMapper.toUserResponse(user);
+        userResponse.setNoPassword(!StringUtils.hasText(user.getPassword()));
+
+        return userResponse;
     }
 
     @Override

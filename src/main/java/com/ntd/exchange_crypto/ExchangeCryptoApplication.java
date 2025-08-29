@@ -3,8 +3,10 @@ package com.ntd.exchange_crypto;
 import io.github.cdimascio.dotenv.Dotenv;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @SpringBootApplication
+@EnableFeignClients
 public class ExchangeCryptoApplication {
 
 	public static void main(String[] args) {
