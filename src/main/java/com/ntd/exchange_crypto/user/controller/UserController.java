@@ -3,6 +3,7 @@ package com.ntd.exchange_crypto.user.controller;
 import com.ntd.exchange_crypto.common.PagedResponse;
 import com.ntd.exchange_crypto.common.dto.response.APIResponse;
 import com.ntd.exchange_crypto.user.UserExternalAPI;
+import com.ntd.exchange_crypto.user.dto.request.PasswordCreationRequest;
 import com.ntd.exchange_crypto.user.dto.request.UserCreationRequest;
 import com.ntd.exchange_crypto.user.dto.request.UserUpdateRequest;
 import com.ntd.exchange_crypto.user.dto.response.UserResponse;
@@ -45,6 +46,15 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(buildResponse(userResponse, "User created", HttpStatus.CREATED));
     }
+
+
+    @PostMapping("/create-password")
+    public ResponseEntity<APIResponse<Void>> createPassword(@RequestBody @Valid PasswordCreationRequest passwordCreationRequest) {
+        userExternalAPI.createPassword(passwordCreationRequest);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(buildResponse(null, "Password created", HttpStatus.CREATED));
+    }
+
 
     @GetMapping("/{userId}")
     @PreAuthorize("hasRole('ADMIN')")

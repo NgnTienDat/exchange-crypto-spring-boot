@@ -39,7 +39,7 @@ public class AssetController {
     @PostMapping("/")
     public ResponseEntity<APIResponse<AssetResponse>> createAsset(@RequestBody @Valid AssetCreationRequest assetCreationRequest) {
         System.out.println(assetCreationRequest);
-        AssetResponse assetResponse = assetInternalAPI.createNewAsset(assetCreationRequest.getProductId(), assetCreationRequest.getNewBalance());
+        AssetResponse assetResponse = assetExternalAPI.createNewAsset(assetCreationRequest.getProductId(), assetCreationRequest.getNewBalance());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(buildResponse(assetResponse, "Asset created", HttpStatus.CREATED));
     }

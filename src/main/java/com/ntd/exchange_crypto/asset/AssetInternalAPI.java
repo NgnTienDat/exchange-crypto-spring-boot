@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import java.util.Optional;
 
 public interface AssetInternalAPI {
-    AssetResponse createNewAsset(String productId, BigDecimal newBalance);
+//    AssetResponse createNewAsset(String productId, BigDecimal newBalance);
 
     Optional<Asset> freezeAsset(String userId, String productId);
 

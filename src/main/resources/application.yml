@@ -45,3 +45,14 @@ app:
     port: 587
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
+
+external:
+  api:
+    identity:
+      url: ${GOOGLE_TOKEN_URI}
+      user-url: ${GOOGLE_USER_URL}
+      client-id: ${GOOGLE_CLIENT_ID}
+      client-secret: ${GOOGLE_CLIENT_SECRET}
+      redirect-uri: ${GOOGLE_REDIRECT_URI}
+
+

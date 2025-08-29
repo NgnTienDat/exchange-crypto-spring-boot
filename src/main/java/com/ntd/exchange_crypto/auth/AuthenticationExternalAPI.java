@@ -17,6 +17,8 @@ public interface AuthenticationExternalAPI {
 
     AuthenticationResponse authenticate(AuthenticationRequest authenticationRequest);
 
+    AuthenticationResponse outboundAuthenticate(String code);
+
     TFAResponse enableTwoFactorAuthentication();
 
     IntrospectResponse introspect(IntrospectRequest request) throws JOSEException, ParseException;
@@ -30,4 +32,5 @@ public interface AuthenticationExternalAPI {
     boolean isUserLogin(String email);
 
     String getClientIpAddress(HttpServletRequest request);
+
 }
