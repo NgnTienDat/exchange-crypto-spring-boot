@@ -261,89 +261,6 @@ public class MatchEngine {
     }
 
 
-    private void matchZ(Order takerOrder, Order makerOrder) {
-        // takerOrder: new order vừa nhận
-        // makerOrder: counter order đã tìm thấy từ Redis
-        // Nếu makerOrder có side là BID thì isBuyerMaker = true
-        System.out.println("🔥 Khớp lệnh: Taker Order: " + takerOrder + ", \nMaker Order: " + makerOrder);
-
-        BigDecimal matchPrice = makerOrder.getPrice();
-        BigDecimal matchQuantity = takerOrder.getQuantity().min(makerOrder.getQuantity());
-        boolean isBuyerMaker = makerOrder.getSide() == Side.BID;
-
-        // 1. Tạo bản ghi Transaction (Giao dịch)
-        Trade trade = Trade.builder()
-                .takerOrderId(takerOrder.getId())
-                .makerOrderId(makerOrder.getId())
-                .productId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
-                .price(makerOrder.getPrice())
-                .quantity(matchQuantity)
-                .isBuyerMaker(isBuyerMaker)
-                .build();
-        // Lưu giao dịch vào DB (hoặc gửi event để lưu sau)?
-        tradeService.saveTrade(trade);
-        log.info("🔥 Đã tạo giao dịch: {}", trade);
-
-
-        // 2. Cập nhật lại Order của cả hai bên (giảm quantity, status...)
-        //   - Nếu quantity bằng nhau thì cả hai đều là FILLED
-        //   - Nếu order nào có quantity nhỏ hơn thì cập nhật status là FILLED
-        //   - Ngược lại order lớn hơn còn lại sẽ là PARTIALLY_FILLED
-        //   - Cập nhật lại quantity đã khớp (quantityFilled) cho cả hai order
-        //   - Cập nhật lại trạng thái của cả hai order
-        if (takerOrder.getQuantity().compareTo(makerOrder.getQuantity()) == 0) {
-
-            takerOrder.setStatus(OrderStatus.FILLED);
-            makerOrder.setStatus(OrderStatus.FILLED);
-
-        } else if (takerOrder.getQuantity().compareTo(makerOrder.getQuantity()) < 0) {
-            // Taker order nhỏ hơn => taker là FILLED, maker là PARTIALLY_FILLED
-            takerOrder.setStatus(OrderStatus.FILLED);
-            makerOrder.setStatus(OrderStatus.PARTIALLY_FILLED);
-        } else {
-            // Maker order nhỏ hơn => maker là FILLED, taker là PARTIALLY_FILLED
-            makerOrder.setStatus(OrderStatus.FILLED);
-            takerOrder.setStatus(OrderStatus.PARTIALLY_FILLED);
-        }
-        log.info("🔥 Cập nhật trạng thái order");
-        if (takerOrder.getType() == OrderType.MARKET) {
-            takerOrder.setPrice(matchPrice); // Cập nhật giá khớp
-        }
-        log.info("🔥 Cập nhật trạng thái taker: {} và maker: {} là FILLED",
-                takerOrder.getStatus(), makerOrder.getStatus());
-
-        orderExternalAPI.updateOrderStatus(takerOrder, matchQuantity, matchPrice);
-        orderExternalAPI.updateOrderStatus(makerOrder, matchQuantity, matchPrice);
-
-
-        OrderDTO orderDtoTaker = OrderDTO.builder()
-                .id(takerOrder.getId())
-                .userId(takerOrder.getUserId())
-                .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
-                .side(takerOrder.getSide().name())
-                .type(takerOrder.getType().name())
-                .quantity(takerOrder.getQuantity())
-                .price(takerOrder.getPrice())
-                .status(takerOrder.getStatus().name())
-                .filledQuantity(takerOrder.getFilledQuantity())
-                .build();
-
-        OrderDTO orderDtoMaker = OrderDTO.builder()
-                .id(makerOrder.getId())
-                .userId(makerOrder.getUserId())
-                .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
-                .side(makerOrder.getSide().name())
-                .type(makerOrder.getType().name())
-                .quantity(takerOrder.getQuantity())
-                .price(takerOrder.getPrice())
-                .status(makerOrder.getStatus().name())
-                .filledQuantity(takerOrder.getFilledQuantity())
-                .build();
-
-        eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
-        eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoMaker));
-
-    }
 
     private void match(Order takerOrder, List<Order> makerOrders) {
         // Lấy quantity còn lại của taker (chưa khớp hết)
@@ -447,9 +364,33 @@ public class MatchEngine {
             // send to admin
 //            orderDtoMaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
 //            orderDtoTaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
+
+            OrderDTO orderDtoTakerAd = OrderDTO.builder()
+                    .id(takerOrder.getId())
+                    .userId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d")
+                    .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
+                    .side(takerOrder.getSide().name())
+                    .type(takerOrder.getType().name())
+                    .quantity(takerOrder.getQuantity())
+                    .price(takerOrder.getPrice())
+                    .status(takerOrder.getStatus().name())
+                    .filledQuantity(takerOrder.getFilledQuantity())
+                    .build();
+
+            OrderDTO orderDtoMakerAd = OrderDTO.builder()
+                    .id(makerOrder.getId())
+                    .userId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d")
+                    .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
+                    .side(makerOrder.getSide().name())
+                    .type(makerOrder.getType().name())
+                    .quantity(makerOrder.getQuantity())
+                    .price(makerOrder.getPrice())
+                    .status(makerOrder.getStatus().name())
+                    .filledQuantity(makerOrder.getFilledQuantity())
+                    .build();
 //
-//            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
-//            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoMaker));
+            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTakerAd));
+            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoMakerAd));
 
 
 
@@ -507,8 +448,19 @@ public class MatchEngine {
         eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
 
 //        orderDtoTaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
+        OrderDTO orderDtoTakerAd = OrderDTO.builder()
+                .id(takerOrder.getId())
+                .userId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d")
+                .pairId(orderExternalAPI.getPairId(takerOrder.getSide(), takerOrder.getGiveCryptoId(), takerOrder.getGetCryptoId()))
+                .side(takerOrder.getSide().name())
+                .type(takerOrder.getType().name())
+                .quantity(takerOrder.getQuantity())
+                .price(takerOrder.getPrice())
+                .status(takerOrder.getStatus().name())
+                .filledQuantity(takerOrder.getFilledQuantity())
+                .build();
 //
-//        eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
+        eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTakerAd));
 
     }
 
