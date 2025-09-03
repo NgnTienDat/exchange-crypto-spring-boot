@@ -39,6 +39,7 @@ public class RedisConfig {
 
 
 
+
     @Bean
     public RedisMessageListenerContainer container(
             RedisConnectionFactory connectionFactory,
@@ -57,16 +58,7 @@ public class RedisConfig {
     public MessageListenerAdapter orderListenerAdapter(OrderMessageSubscriber subscriber) {
         return new MessageListenerAdapter(subscriber);
     }
-//    @Bean
-//    public MessageListenerAdapter orderListenerAdapter(OrderMessageSubscriber subscriber,
-//                                                       ObjectMapper objectMapper) {
-//        MessageListenerAdapter adapter = new MessageListenerAdapter(subscriber, "handleMessage");
-//        // Gọi đến method tên "handleMessage"
-//        // Cấu hình serializer để nó tự động chuyển đổi message thành đối tượng Order
-//        adapter.setSerializer(new Jackson2JsonRedisSerializer<>(objectMapper, Object.class));
-//        adapter.afterPropertiesSet();
-//        return adapter;
-//    }
+
 
     @Bean
     public MessageListenerAdapter orderBookStatListenerAdapter(OrderBookStatsMessageSubscriber subscriber) {

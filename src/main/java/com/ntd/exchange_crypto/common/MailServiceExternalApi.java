@@ -8,4 +8,6 @@ public interface MailServiceExternalApi {
     boolean isVerified(String email);
 
     void clearVerified(String email);
+
+    void sendLoginAlert(String email, String IpAddress, String deviceName);
 }

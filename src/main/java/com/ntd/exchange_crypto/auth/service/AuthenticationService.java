@@ -19,6 +19,7 @@ import com.ntd.exchange_crypto.auth.repository.InvalidatedTokenRepository;
 import com.ntd.exchange_crypto.auth.repository.httpClient.OutboundIdentityClient;
 import com.ntd.exchange_crypto.auth.repository.TrustedDeviceRepository;
 import com.ntd.exchange_crypto.auth.repository.httpClient.OutboundUserClient;
+import com.ntd.exchange_crypto.common.MailServiceExternalApi;
 import com.ntd.exchange_crypto.user.enums.Role;
 import com.ntd.exchange_crypto.user.model.User;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,11 +29,20 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.event.AuthenticationFailureBadCredentialsEvent;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.text.ParseException;
@@ -45,6 +55,7 @@ import java.util.UUID;
 
 @Slf4j
 @Service
+@Transactional
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthenticationService implements AuthenticationExternalAPI {
@@ -55,6 +66,9 @@ public class AuthenticationService implements AuthenticationExternalAPI {
     private final TrustedDeviceRepository trustedDeviceRepository;
     private final OutboundIdentityClient outboundIdentityClient;
     private final OutboundUserClient outboundUserClient;
+    private final MailServiceExternalApi mailService;
+    private final RedisTemplate<String, String> redisTemplate;
+    private ApplicationEventPublisher eventPublisher;
 
     @NonFinal
     @Value("${auth.signer-key}")
@@ -95,6 +109,12 @@ public class AuthenticationService implements AuthenticationExternalAPI {
 
     @Override
     public AuthenticationResponse authenticate(AuthenticationRequest authenticationRequest) {
+
+        if (Boolean.TRUE.equals(redisTemplate.hasKey("login-lock" + authenticationRequest.getEmail()))) {
+            throw new AuthException(AuthErrorCode.ACCOUNT_LOCKED);
+        }
+
+
         User user = authenticationRepository
                 .findByEmail(authenticationRequest.getEmail())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_EXISTS));
@@ -104,7 +124,18 @@ public class AuthenticationService implements AuthenticationExternalAPI {
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
         boolean isAuthenticated = passwordEncoder.matches(authenticationRequest.getPassword(), user.getPassword());
 
-        if (!isAuthenticated) throw new AuthException(AuthErrorCode.UNAUTHENTICATED);
+        if (!isAuthenticated) {
+            eventPublisher.publishEvent(
+                    new AuthenticationFailureBadCredentialsEvent(
+                            new UsernamePasswordAuthenticationToken(
+                                    authenticationRequest.getEmail(),
+                                    authenticationRequest.getPassword()
+                            ),
+                            new BadCredentialsException("Invalid password")
+                    )
+            );
+            throw new AuthException(AuthErrorCode.UNAUTHENTICATED);
+        }
 
         TrustedDevice device = trustedDeviceRepository
                 .findByDeviceIdAndUserId(authenticationRequest.getDeviceId(), user.getId())
@@ -146,8 +177,8 @@ public class AuthenticationService implements AuthenticationExternalAPI {
 
 
     @Override
+    @Transactional
     public AuthenticationResponse outboundAuthenticate(String code) {
-
         var response = outboundIdentityClient.exchangeToken(ExchangeTokenRequest.builder()
                 .code(code)
                 .clientId(CLIENT_ID)
@@ -156,30 +187,31 @@ public class AuthenticationService implements AuthenticationExternalAPI {
                 .grantType(GRANT_TYPE)
                 .build());
 
-        log.info("Google token response {}", response);
-
         var userInfo = outboundUserClient.getUserInfo("json", response.getAccessToken());
-
-        log.info("User info: {}", userInfo);
 
         HashSet<String> roles = new HashSet<>();
         roles.add(Role.USER.name());
 
-        User user = authenticationRepository
-                .findByEmail(userInfo.getEmail())
-                .orElseGet(() ->
-                        authenticationRepository.save(User.builder()
+        User user = authenticationRepository.findByEmail(userInfo.getEmail())
+                .orElseGet(() -> {
+                    try {
+                        return authenticationRepository.save(User.builder()
                                 .email(userInfo.getEmail())
                                 .fullName(userInfo.getName())
                                 .avatar(userInfo.getPicture())
                                 .roles(roles)
-                                .build())
-                );
+                                .build());
+                    } catch (DataIntegrityViolationException ex) {
+
+                        return authenticationRepository.findByEmail(userInfo.getEmail())
+                                .orElseThrow();
+                    }
+                });
 
         String token = generateToken(user);
-
         return AuthenticationResponse.builder().token(token).build();
     }
+
 
 
     @Override
@@ -331,6 +363,9 @@ public class AuthenticationService implements AuthenticationExternalAPI {
         trustedDeviceRepository.save(device);
 
         String token = generateToken(user);
+
+        mailService.sendLoginAlert(user.getEmail(), device.getIpAddress(), device.getUserAgent());
+
         return AuthenticationResponse.builder()
                 .token(token)
                 .isAuthenticated(true)
