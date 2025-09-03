@@ -10,6 +10,7 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Builder
+@ToString
 public class VerificationRequest {
     @NotBlank(message = "NOT_BLANK")
     String userId;

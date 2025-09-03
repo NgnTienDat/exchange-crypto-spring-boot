@@ -341,6 +341,8 @@ public class AuthenticationService implements AuthenticationExternalAPI {
     @Override
     public AuthenticationResponse verifyCode(VerificationRequest verificationRequest) {
 
+        log.info("verificationRequest: {}", verificationRequest);
+
         User user = authenticationRepository
                 .findById(verificationRequest.getUserId())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_EXISTS));

@@ -44,11 +44,11 @@ public class AuthenticationFailureListener implements ApplicationListener<Authen
         if (attempts >= MAX_ATTEMPTS) {
             redisTemplate.opsForValue().set(keyLock, "LOCKED", LOCK_TIME_SECONDS, TimeUnit.SECONDS);
 
-            authenticationRepository.findByEmail(email).ifPresent(user -> {
-                user.setActive(false);
-                log.info("User {} is locked due to too many failed login attempts", email);
-                authenticationRepository.save(user);
-            });
+//            authenticationRepository.findByEmail(email).ifPresent(user -> {
+//                user.setActive(false);
+//                log.info("User {} is locked due to too many failed login attempts", email);
+//                authenticationRepository.save(user);
+//            });
         }
     }
 
