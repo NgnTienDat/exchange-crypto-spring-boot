@@ -61,4 +61,28 @@ public class MailService implements MailServiceExternalApi {
         redisTemplate.delete("verified:" + email);
     }
 
+    @Override
+    public void sendLoginAlert(String email, String ipAddress, String deviceName) {
+        SimpleMailMessage msg = new SimpleMailMessage();
+        msg.setFrom("dat.nt334@gmail.com");
+        msg.setTo(email);
+        msg.setSubject("[CryptoCoin] New Device or IP Login Alert");
+
+        String text = """
+        New Device or IP Login Detected on Your Account
+
+        We detected a login to your account %s from a new device or IP address. 
+        If this was not you, please change your password or temporarily disable your account immediately.
+
+        Time : %s (UTC)
+        Device : %s
+        IP Address : %s
+        Location : Ho Chi Minh City Vietnam
+        """.formatted(email, java.time.Instant.now(), deviceName, ipAddress);
+
+        msg.setText(text);
+        mailSender.send(msg);
+    }
+
+
 }
