@@ -35,19 +35,3 @@ public class OrderBookStatsMessageSubscriber implements MessageListener {
     }
 }
 
-//@Component
-//public class OrderBookStatsMessageSubscriber implements MessageListener {
-//
-//    @Override
-//    public void onMessage(Message message, byte[] pattern) {
-//        String channel = new String(message.getChannel());
-//        String body = new String(message.getBody());
-//
-//        System.out.println("🔥 Nhận message từ Redis channel: " + channel);
-//        System.out.println("📦 Nội dung: " + body);
-//
-//        // Gọi đến match engine hoặc service xử lý
-//        // Ví dụ:
-//        // tradeService.handleNewOrder(body);
-//    }
-//}

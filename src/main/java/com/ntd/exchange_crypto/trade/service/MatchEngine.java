@@ -78,130 +78,6 @@ public class MatchEngine {
         }
     }
 
-    // Xử lý lệnh Market
-    private void handleMarketOrderZ(Order order) throws JsonProcessingException {
-        // 1. Xác định chiều lệnh (BID hoặc ASK)
-        // 2. Lấy bestAsk hoặc bestBid từ cache orderBookStatsService
-        // 3. Lấy order đối ứng có giá tốt nhất từ Redis OrderBook
-        // 4. Nếu giá của order đối ứng tốt hơn hoặc bằng best giá hiện tại:
-        //    - Khớp lệnh với order đối ứng
-        //    - Tạo giao dịch thực với user tương ứng
-        // 5. Nếu không có order đối ứng tốt hơn:
-        //    - Khớp với anonymous user theo best giá hiện tại
-        //    - Tạo giao dịch với user ảo
-        // 6. Gửi event tạo giao dịch / lưu vào DB
-
-        /*
-         * ASK bán             BID mua
-         * 99                 101
-         * 100                100
-         * 101                99
-         * */
-
-        /* Đối với lệnh MARKET, nếu lệnh taker có quantity lớn hơn
-         * (b1) bid: limit, 0.5 BTC: 101 USDT -> PENDING
-         * (b2) bid: limit, 1 BTC: 100 USDT -> PENDING
-         * (b3) bid: limit, 0.5 BTC: 100 USDT -> PENDING
-         *
-         *
-         * order an (a1) ask: market, 2 BTC
-         *
-         * Kiểm tra nếu lệnh bid tốt nhất có quantity bé hơn ask taker thì tiếp tục lấy thêm lệnh tốt thứ 2, thứ 3...
-         * cho đến khi ask taker quantity <= tổng quantity của các lệnh bid đã lấy
-         * (a1) ask: market, 2 BTC -> khớp với (b1), (b2) và (b3)
-         * đưa vào match(a1, [b1, b2, b3]) với đối số là a1 và [b1, b2, b3]
-         *
-         *
-         * trong match(), khớp lần lượt từng lệnh bid trong danh sách với lệnh ask taker
-         * cập nhật trạng thái của từng lệnh bid
-         * cập nhật trạng thái của lệnh ask
-         *
-         *
-         * */
-
-        /* Đối với lệnh LIMIT, nếu lệnh taker có quantity lớn hơn
-         * (b1) bid: limit, 0.5 BTC: 105 USDT -> PENDING
-         * (b2) bid: limit, 1 BTC: 100 USDT -> PENDING
-         * (b3) bid: limit, 0.5 BTC: 100 USDT -> PENDING
-         *
-         *
-         * order an (a1) ask: market, 2 BTC: 100 USDT
-         *
-         * Kiểm tra nếu lệnh bid "cùng giá 100 USDT" có quantity bé hơn ask taker
-         * thì tiếp tục lấy thêm lệnh "cùng giá" thứ 2, thứ 3...
-         * cho đến khi ask taker quantity <= tổng quantity của các lệnh bid (cùng giá 100 USDT) đã lấy.
-         * (a1) ask: market, 2 BTC -> khớp với (b2) và (b3)
-         * đưa vào match(a1, [b2, b3]) với đối số là a1 và [b2, b3]
-         *
-         *
-         * trong match(), khớp lần lượt từng lệnh bid trong danh sách với lệnh ask taker
-         * cập nhật trạng thái của từng lệnh bid
-         * cập nhật trạng thái của lệnh ask
-         *
-         *
-         * */
-
-
-        log.info("🔥 Nhận order mới MARKET: {}", order);
-
-
-        // 1. Xác định chiều lệnh (BID hoặc ASK)
-        Side side = order.getSide();
-        String productId = this.getPairIdFromOrderBookData(side, order.getGiveCryptoId(), order.getGetCryptoId());
-
-        // 2. Lấy stats từ cache (đã cập nhật liên tục bởi BinanceWebSocketService)
-        OrderBookStats stats = orderBookStatsService.getStats(productId);
-        if (stats == null) {
-            log.warn("No order book (Form Binance) stats available for {}", productId);
-            return;
-        }
-
-        BigDecimal bestPrice = (side == Side.BID) ? stats.getMinAskPrice() : stats.getMaxBidPrice();
-        log.info("🔥 Best price for {}: {}", productId, bestPrice);
-
-        String pairId = orderExternalAPI.getPairId(side, order.getGiveCryptoId(), order.getGetCryptoId());
-
-        // 3. Tìm order đối ứng từ Redis (RedisZSet theo chiều ngược lại)
-        Side counterSide = (side == Side.BID) ? Side.ASK : Side.BID;
-        String redisZSetKey = "orderbook:" + pairId + ":" + counterSide.name().toLowerCase();
-        log.info("🔥 Redis ZSet key: {}", redisZSetKey);
-
-        // Lấy order đối ứng có giá tốt nhất từ Redis
-        Set<Object> orderRedis = redisTemplate.opsForZSet().range(redisZSetKey, 0, 0);
-        log.info("🔥 Order Redis: {}", orderRedis);
-
-
-        if (orderRedis != null && !orderRedis.isEmpty()) {
-            log.info("🔥 Found {} order stats", orderRedis.size());
-
-            String counterOrderKey = (String) orderRedis.iterator().next();
-
-            log.info("🔥 Found counter order key: {}", counterOrderKey);
-
-
-//            // 4. Get order details from Redis Hash
-            String orderJson = (String) redisTemplate.opsForHash().get("order:" + counterOrderKey, "order");
-            if (orderJson == null) return;
-
-            Order counterOrder = objectMapper.readValue(orderJson, Order.class);
-            log.info("🔥 Counter order: {}", counterOrder);
-//
-//          // 5. Compare with best price to determine match with user or anonymous
-            if ((side == Side.BID && counterOrder.getPrice().compareTo(bestPrice) <= 0) ||
-                    (side == Side.ASK && counterOrder.getPrice().compareTo(bestPrice) >= 0)) {
-
-                // ✅ 6. Khớp lệnh giữa 2 user
-//                match(order, counterOrder);
-            } else {
-                matchWithAnonymous(order, bestPrice, order.getQuantity());
-            }
-        } else {
-            log.warn("No order redis available for {}", redisZSetKey);
-            matchWithAnonymous(order, bestPrice, order.getQuantity());
-        }
-
-        // 9. Gửi event lưu giao dịch vào DB hoặc xử lý hậu khớp
-    }
 
     private void handleMarketOrder(Order order) throws JsonProcessingException {
         log.info("🔥 Nhận order mới MARKET: {}", order);
@@ -244,7 +120,12 @@ public class MatchEngine {
 
                 Order counterOrder = objectMapper.readValue(orderJson, Order.class);
 
-                // ✅ Check giá trước khi match
+                if (counterOrder.getUserId().equals(order.getUserId())) {
+                    // Không khớp lệnh với chính mình
+                    continue;
+                }
+
+                // Check giá trước khi match
                 if ((side == Side.BID && counterOrder.getPrice().compareTo(bestPrice) <= 0) ||
                         (side == Side.ASK && counterOrder.getPrice().compareTo(bestPrice) >= 0)) {
 
@@ -315,12 +196,6 @@ public class MatchEngine {
 
         log.info("🔥 Best price for {}: {} - {}", productId, minPrice, maxPrice);
 
-//        Order matchingOrder = null;
-//        matchingOrder = findMatchingOrderByPriceZ(order);
-
-//        if (matchingOrder != null) {
-//            log.info("🔥 Tìm thấy order đối ứng cùng giá: {}", matchingOrder);
-//            match(order, matchingOrder);
         List<Order> matchingOrders = findMatchingOrdersByPrice(order);
         if (!matchingOrders.isEmpty()) {
             // Gom quantity
@@ -570,11 +445,11 @@ public class MatchEngine {
 
 
             // send to admin
-            orderDtoMaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
-            orderDtoTaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
-
-            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
-            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoMaker));
+//            orderDtoMaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
+//            orderDtoTaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
+//
+//            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
+//            eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoMaker));
 
 
 
@@ -631,9 +506,9 @@ public class MatchEngine {
                 .build();
         eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
 
-        orderDtoTaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
-
-        eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
+//        orderDtoTaker.setUserId("1218a33f-e5dd-4e4b-8589-8a53c4d0144d");
+//
+//        eventPublisher.publishEvent(new OrderReceivedEvent(orderDtoTaker));
 
     }
 
@@ -666,13 +541,6 @@ public class MatchEngine {
 
     }
 
-    // Hàm kiểm tra order limit PENDING có nên khớp với anonymous không
-    private void checkPendingOrdersAgainstOrderBook() {
-        // 1. Lấy danh sách các order LIMIT có trạng thái PENDING
-        // 2. So sánh khoảng giá hiện tại với price của từng order
-        // 3. Nếu vào vùng min-max => khớp với anonymous user
-    }
-
 
     /*--------------- Hàm tiện ích -------------------------------------------------------------------------------*/
 
@@ -681,44 +549,6 @@ public class MatchEngine {
         return side == Side.BID ?
                 getCryptoId + giveCryptoId :
                 giveCryptoId + getCryptoId;
-    }
-
-    private Order findMatchingOrderByPriceZ(Order order) throws JsonProcessingException {
-        // Determining the counter side based on the order side
-        Side counterSide = (order.getSide() == Side.BID) ? Side.ASK : Side.BID;
-        String pairId = orderExternalAPI.getPairId(order.getSide(), order.getGiveCryptoId(), order.getGetCryptoId());
-        String redisZSetKey = "orderbook:" + pairId + ":" + counterSide.name().toLowerCase();
-
-        // Calculate the price part based on the order side
-        double pricePart = (counterSide == Side.BID)
-                ? -order.getPrice().doubleValue()
-                : order.getPrice().doubleValue();
-
-        // Determine the score range for the search
-        // Using a small epsilon to allow for slight variations in price matching
-        double epsilon = 0.5;
-        double scoreMin = pricePart - epsilon;
-        double scoreMax = pricePart + epsilon;
-
-        System.out.println("🔥 Tìm kiếm order đối ứng trong Redis ZSet: " + redisZSetKey +
-                ", Score Min: " + scoreMin + ", Score Max: " + scoreMax);
-
-        // Fetching the matching order from Redis ZSet
-        Set<Object> orderRedis = redisTemplate.opsForZSet()
-                .rangeByScore(redisZSetKey, scoreMin, scoreMax, 0, 1);
-
-        if (orderRedis != null && !orderRedis.isEmpty()) {
-            String counterOrderKey = (String) orderRedis.iterator().next();
-            System.out.println("🔥 Found counter order key: " + counterOrderKey);
-
-            // Fetching the order details from Redis Hash
-            String orderJson = (String) redisTemplate.opsForHash().get("order:" + counterOrderKey, "order");
-            if (orderJson == null) return null;
-
-            return objectMapper.readValue(orderJson, Order.class);
-
-        }
-        return null;
     }
 
     private List<Order> findMatchingOrdersByPrice(Order order) throws JsonProcessingException {
@@ -749,6 +579,10 @@ public class MatchEngine {
                 String orderJson = (String) redisTemplate.opsForHash().get("order:" + counterOrderKey, "order");
                 if (orderJson != null) {
                     Order counterOrder = objectMapper.readValue(orderJson, Order.class);
+                    if (counterOrder.getUserId().equals(order.getUserId())) {
+                        // Không khớp lệnh với chính mình
+                        continue;
+                    }
                     counterOrders.add(counterOrder);
                 }
             }

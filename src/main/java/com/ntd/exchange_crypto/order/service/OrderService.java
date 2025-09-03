@@ -393,7 +393,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         Slice<Order> orders = orderRepository
                 .findAllOpenOrdersByPairAndAndUser(baseSymbol, quoteSymbol, userId, pageable);
 
-        if (orders == null || !orders.hasContent()) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        if (orders == null || !orders.hasContent())  return new SliceResponse<>(List.of(), page, size, false);
 
         return new SliceResponse<>(
                 orders.getContent().stream()
@@ -418,7 +418,7 @@ public class OrderService implements OrderExternalAPI, OrderInternalAPI {
         Slice<Order> orders = orderRepository
                 .findAllOrdersHistoryByPairAndAndUser(baseSymbol, quoteSymbol, userId, pageable);
 
-        if (orders == null || !orders.hasContent()) throw new OrderException(OrderErrorCode.ORDER_NOT_FOUND);
+        if (orders == null || !orders.hasContent())  return new SliceResponse<>(List.of(), page, size, false);
 
         return new SliceResponse<>(
                 orders.getContent().stream()
